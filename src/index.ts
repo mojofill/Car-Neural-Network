@@ -31,7 +31,10 @@ const time = {
     }
 }
 
-let path: Path;
+let path: Path; // use later for pixel detection stuff
+const image = new Image();
+image.onload = () => ctx.drawImage(image, 0, 0);
+image.src = '../src/pathImage.png';
 
 const car = new Car(ctx);
 
@@ -132,7 +135,7 @@ const loop = () => {
 
     reset();
 
-    path.renderPath(ctx, 50);
+    path.draw(ctx, image);
 
     processKeys();
 
@@ -151,7 +154,9 @@ window.onload = () => {
     })
     .then((json) => {
         path = new Path(json.points);
-        init();
+        path.pixelate(canvas, 3);
+        path.test(canvas, ctx, 3);
+        //init();
     })
     .catch((err) => {
         console.log(err);

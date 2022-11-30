@@ -30,7 +30,10 @@ const time = {
         return this.curr - this.past;
     }
 };
-let path;
+let path; // use later for pixel detection stuff
+const image = new Image();
+image.onload = () => ctx.drawImage(image, 0, 0);
+image.src = '../src/pathImage.png';
 const car = new car_1.default(ctx);
 const keys = {
     forward: false,
@@ -120,7 +123,7 @@ const reset = () => {
 const loop = () => {
     time.updateTime();
     reset();
-    path.renderPath(ctx, 50);
+    path.draw(ctx, image);
     processKeys();
     car.setDeltaTime(time.delatTime);
     car.move();
@@ -134,7 +137,9 @@ window.onload = () => {
     })
         .then((json) => {
         path = new path_1.default(json.points);
-        init();
+        path.pixelate(canvas, 3);
+        path.test(canvas, ctx, 3);
+        //init();
     })
         .catch((err) => {
         console.log(err);

@@ -62,7 +62,10 @@ const time = {
         return this.curr - this.past;
     }
 };
-let path;
+let path; // use later for pixel detection stuff
+const image = new Image();
+image.onload = () => ctx.drawImage(image, 0, 0);
+image.src = '../src/pathImage.png';
 const car = new car_1.default(ctx);
 const keys = {
     forward: false,
@@ -152,7 +155,7 @@ const reset = () => {
 const loop = () => {
     time.updateTime();
     reset();
-    path.renderPath(ctx, 50);
+    path.draw(ctx, image);
     processKeys();
     car.setDeltaTime(time.delatTime);
     car.move();
@@ -166,7 +169,9 @@ window.onload = () => {
     })
         .then((json) => {
         path = new path_1.default(json.points);
-        init();
+        path.pixelate(canvas, 3);
+        path.test(canvas, ctx, 3);
+        //init();
     })
         .catch((err) => {
         console.log(err);
@@ -176,54 +181,79 @@ window.onload = () => {
 },{"./car":1,"./path":3}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const utils_1 = require("./utils");
+exports.PointColors = exports.PointType = void 0;
+var PointType;
+(function (PointType) {
+    PointType[PointType["Road"] = 0] = "Road";
+    PointType[PointType["Empty"] = 1] = "Empty";
+})(PointType = exports.PointType || (exports.PointType = {}));
+class PointColors {
+}
+exports.PointColors = PointColors;
+PointColors.road = [255, 255, 255];
+PointColors.car = [255, 0, 0];
 class Path {
     constructor(points) {
         this.points = [];
+        this.map = [];
         this.points = points;
     }
-    renderPath(ctx, pathWidth) {
-        //for (const p of points) drawP(p);
-        ctx.beginPath();
-        ctx.strokeStyle = "white";
-        for (let t = 0; t <= 1; t += 0.0001) {
-            // first test: lerp between all the points in order
-            // WRONG - this needs to be recursive
-            const recurse = (lines, t) => {
-                // return when there is just one line left
-                if (lines.length === 0)
-                    return;
-                if (lines.length === 1) {
-                    const { x, y } = (0, utils_1.lerp)(lines[0].p, lines[0].r, t);
-                    ctx.lineTo(x, y);
-                    return;
-                }
-                // find the lerped point of each line
-                const lerpedPoints = [];
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    lerpedPoints.push((0, utils_1.lerp)(line.p, line.r, t));
-                }
-                const newLines = [];
-                for (let i = 0; i < lerpedPoints.length - 1; i++) {
-                    newLines.push(new utils_1.Line(lerpedPoints[i], lerpedPoints[i + 1]));
-                }
-                recurse(newLines, t);
-            };
-            // create the first set of lines
-            const lines = [];
-            for (let i = 0; i < this.points.length - 1; i++) {
-                lines.push(new utils_1.Line(this.points[i], this.points[i + 1]));
-            }
-            recurse(lines, t);
+    draw(ctx, image) {
+        ctx.drawImage(image, 0, 0);
+    }
+    arrayEquals(arr1, arr2) {
+        for (let i = 0; i < arr1.length; i++) {
+            if (arr1[i] !== arr2[i])
+                return false;
         }
-        ctx.lineWidth = pathWidth;
-        ctx.stroke();
+        return true;
+    }
+    test(canvas, ctx, UNIT_WIDTH) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < this.map.length; y++) {
+            for (let x = 0; x < this.map[y].length; x++) {
+                if (this.map[y][x] === PointType.Road) {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
+                }
+            }
+        }
+    }
+    pixelate(canvas, UNIT_WIDTH) {
+        const image = new Image();
+        image.src = '../src/pathImage.png';
+        const ctx = canvas.getContext('2d');
+        if (!ctx || !(ctx instanceof CanvasRenderingContext2D))
+            throw new Error();
+        for (let y = 0; y < Math.floor(canvas.height / UNIT_WIDTH); y++) {
+            this.map.push([]);
+            for (let x = 0; x < Math.floor(canvas.width / UNIT_WIDTH); x++) {
+                let totalRoadPixels = 0;
+                let totalPixels = 0;
+                for (let py = y * UNIT_WIDTH; py < y * UNIT_WIDTH + UNIT_WIDTH; py++) {
+                    for (let px = x * UNIT_WIDTH; px < x * UNIT_WIDTH + UNIT_WIDTH; px++) {
+                        const data = ctx.getImageData(px, py, 1, 1);
+                        const r = data.data[0];
+                        const g = data.data[1];
+                        const b = data.data[2];
+                        if (this.arrayEquals([r, g, b], PointColors.road))
+                            totalRoadPixels++;
+                        totalPixels++;
+                    }
+                }
+                if (totalRoadPixels / totalPixels >= 0.5)
+                    this.map[y].push(PointType.Road);
+                else
+                    this.map[y].push(PointType.Empty);
+            }
+        }
     }
 }
 exports.default = Path;
 
-},{"./utils":5}],4:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class RenderedObject {
@@ -343,24 +373,5 @@ class RenderedObject {
     }
 }
 exports.default = RenderedObject;
-
-},{}],5:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.lerp = exports.Line = void 0;
-class Line {
-    constructor(p, r) {
-        this.p = p;
-        this.r = r;
-    }
-}
-exports.Line = Line;
-function lerp(p, r, t) {
-    return {
-        x: p.x + t * (r.x - p.x),
-        y: p.y + t * (r.y - p.y)
-    };
-}
-exports.lerp = lerp;
 
 },{}]},{},[2]);
