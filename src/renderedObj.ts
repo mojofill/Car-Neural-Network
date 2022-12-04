@@ -1,14 +1,14 @@
-export default class RenderedObject {
+export default abstract class RenderedObject {
     private deltaTime: number = 0;
     
-    private color: string = "";
+    public color: string = "";
 
-    private x: number = 0; // center x
-    private y: number = 0; // center y
-    private heading: number = 0;
+    public x: number = 0; // center x
+    public y: number = 0; // center y
+    public heading: number = 0;
 
-    private width: number = 0;
-    private height: number = 0;
+    public width: number = 0;
+    public height: number = 0;
     
     private v: number = 0;
     private headingV: number = 0;
@@ -27,7 +27,7 @@ export default class RenderedObject {
     private braking: boolean = false;
 
     constructor(
-        private ctx: CanvasRenderingContext2D
+        public ctx: CanvasRenderingContext2D
     ) {}
 
     public getFrictionHeadingA() {
@@ -136,9 +136,14 @@ export default class RenderedObject {
     }
 
     // do i need a prerender method? if i do put it in here
+    // update: i do need a prerender method for collision stuff
+
+    public abstract collisionDetect(): void;
 
     public render() {
         if (this.color === "") throw new Error("no color given");
+
+        this.collisionDetect();
 
         this.ctx.save();
         this.ctx.translate(this.x, this.y);

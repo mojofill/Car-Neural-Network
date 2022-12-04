@@ -16,9 +16,6 @@ canvas.style.height = '' + canvas.height;
 canvas.style.position = 'fixed';
 canvas.style.margin = canvas.style.left = canvas.style.top = '0px';
 
-const pixelMap = [];
-const pixelWidth = 10;
-
 const time = {
     curr: Date.now() / 1000,
     past: Date.now() / 1000,
@@ -154,9 +151,17 @@ window.onload = () => {
     })
     .then((json) => {
         path = new Path(json.points);
-        path.pixelate(canvas, 3);
-        path.test(canvas, ctx, 3);
-        //init();
+        let time1 = Date.now();
+        path.pixelate(canvas, 1);
+        let time2 = Date.now();
+        console.log('pixelation time taken: ' + (time2 - time1) / 1000 + ' s');
+        car.setPath(path);
+        time1 = Date.now();
+        path.setBorderPixels();
+        time2 = Date.now();
+        console.log('border pixelation time taken: ' + (time2 - time1) / 1000 + ' s');
+        
+        init();
     })
     .catch((err) => {
         console.log(err);

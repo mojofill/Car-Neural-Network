@@ -103,10 +103,10 @@ class RenderedObject {
             this.headingV = Math.sign(this.headingV) * this.maxHeadingV;
         }
     }
-    // do i need a prerender method? if i do put it in here
     render() {
         if (this.color === "")
             throw new Error("no color given");
+        this.collisionDetect();
         this.ctx.save();
         this.ctx.translate(this.x, this.y);
         this.ctx.rotate(this.heading);

@@ -15,6 +15,7 @@ class Path {
     constructor(points) {
         this.points = [];
         this.map = [];
+        this.borderPixels = [];
         this.points = points;
     }
     draw(ctx, image) {
@@ -38,6 +39,16 @@ class Path {
                     ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
                 }
             }
+        }
+    }
+    testBorderPixels(canvas, ctx, UNIT_WIDTH) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        for (let i = 0; i < this.borderPixels.length; i++) {
+            const { x, y } = this.borderPixels[i];
+            ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
         }
     }
     pixelate(canvas, UNIT_WIDTH) {
@@ -66,6 +77,37 @@ class Path {
                     this.map[y].push(PointType.Road);
                 else
                     this.map[y].push(PointType.Empty);
+            }
+        }
+    }
+    setBorderPixels() {
+        for (let y = 0; y < this.map.length; y++) {
+            for (let x = 0; x < this.map[y].length; x++) {
+                // check the neighbors, if there are both road and empty neighbors, then it is a border pixel
+                let roadPixelNeighbor = false;
+                let emptyPixelNeighbor = false;
+                for (let dy = -1; dy <= 1; dy++) {
+                    let isBorderPixel = false;
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const py = y + dy;
+                        const px = x + dx;
+                        if (0 <= py && py < this.map.length && 0 <= px && px < this.map[0].length) {
+                            // find pixel type of this neighbor
+                            if (this.map[py][px] === PointType.Road)
+                                roadPixelNeighbor = true;
+                            if (this.map[py][px] === PointType.Empty)
+                                emptyPixelNeighbor = true;
+                            if (roadPixelNeighbor && emptyPixelNeighbor) {
+                                isBorderPixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isBorderPixel) {
+                        this.borderPixels.push({ x: x, y: y });
+                        break;
+                    }
+                }
             }
         }
     }
