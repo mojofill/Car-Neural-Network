@@ -1,5 +1,7 @@
 import Car from "./car";
 import Path from './path';
+import AI from "./ai/ai";
+import Layer from "./ai/layer";
 
 const canvas = document.getElementById("canvas");
 
@@ -33,7 +35,9 @@ const image = new Image();
 image.onload = () => ctx.drawImage(image, 0, 0);
 image.src = '../src/pathImage.png';
 
-const car = new Car(ctx);
+let car: Car; // shitty code but this is the only way
+
+let ai: AI;
 
 const keys = {
     forward: false,
@@ -42,10 +46,7 @@ const keys = {
     right: false
 }
 
-const init = () => {
-    car.setA(0);
-    car.setPose(canvas.width / 2, canvas.height / 2, car.getHeading());
-
+const manualControls = () => {
     document.addEventListener('keydown', (e) => {
         switch(e.code) {
             case "KeyW":
@@ -91,20 +92,13 @@ const init = () => {
                 break;
         }
     });
-
-    requestAnimationFrame(loop);
 }
-
 const processKeys = () => {
     if (keys.forward === keys.back) {
         car.setA(0);
-        car.setBrake(false);
     }
     else if (keys.forward) {
         car.setA(500);
-    }
-    else {
-        car.setBrake(true);
     }
 
     if (keys.left === keys.right) {
@@ -112,13 +106,18 @@ const processKeys = () => {
     }
 
     else if (keys.left) {
-        if (car.getHeadingV() > 0) car.setHeadingV(0);
+        if (car.headingV > 0) car.setHeadingV(0);
         car.setHeadingA(-100);
     }
     else {
-        if (car.getHeadingV() < 0) car.setHeadingV(0);
+        if (car.headingV < 0) car.setHeadingV(0);
         car.setHeadingA(100);
     }
+}
+
+const init = () => {
+    //manualControls();
+    requestAnimationFrame(loop);
 }
 
 const reset = () => {
@@ -134,12 +133,33 @@ const loop = () => {
 
     path.draw(ctx, image);
 
-    processKeys();
-
     car.setDeltaTime(time.delatTime);
     
     car.move();
     car.render();
+
+    for (let i = 0; i < car.sensors.length; i++) {
+        const sensor = car.sensors[i];
+        const { x, y } = sensor.sense();
+        ctx.fillStyle = 'green';
+        ctx.fillRect(x-5, y-5, 10, 10);
+        // put the distance of each inside the neural network input layer - in this order
+        const distance = Math.sqrt((x - car.x) ** 2 + (y - car.y) ** 2);
+        const inputLayer = ai.layers[0];
+        inputLayer.set(i, distance);
+    }
+
+    const data = ai.evaluate();
+    const a = data.get(0).value;
+    const heading_v = data.get(1).value;
+
+    car.setA(a * 100);
+    car.setHeadingV(heading_v * 0.01);
+
+    if (car.collisionDetect()) {
+        // ai has to learn!! backpropagation omg ?!?!
+        ai.learn();
+    }
 
     requestAnimationFrame(loop);
 }
@@ -150,18 +170,40 @@ window.onload = () => {
         return response.json();
     })
     .then((json) => {
-        path = new Path(json.points);
-        let time1 = Date.now();
-        path.pixelate(canvas, 1);
-        let time2 = Date.now();
-        console.log('pixelation time taken: ' + (time2 - time1) / 1000 + ' s');
-        car.setPath(path);
-        time1 = Date.now();
-        path.setBorderPixels();
-        time2 = Date.now();
-        console.log('border pixelation time taken: ' + (time2 - time1) / 1000 + ' s');
-        
-        init();
+        path = new Path(json.points, json.spawn, json.direction);
+
+        fetch('../data/map.json')
+        .then((response) => {
+            return response.json();
+        })
+        .then((mapJson) => {
+            const _init = () => {
+                car.setPath(path);
+                path.setBorderPixels();
+                ai = new AI(path, car);
+                init();
+            }
+
+            car = new Car(ctx, json.spawn, json.direction + Math.PI / 2);
+
+            if (mapJson.data === undefined) {
+                path.pixelate(canvas, 1);
+
+                const obj = {
+                    "data": path.map
+                };
+                
+                const string = JSON.stringify(obj);
+
+                navigator.clipboard.writeText(string).then(() => {
+                    _init();
+                });
+            }
+            else {
+                path.map = mapJson.data;
+                _init();
+            };
+        })
     })
     .catch((err) => {
         console.log(err);

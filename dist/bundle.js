@@ -1,5 +1,111 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const layer_1 = __importDefault(require("./layer"));
+// start off simple - simply create a neural network that doesnt learn yet
+class AI {
+    constructor(path, car) {
+        this.path = path;
+        this.car = car;
+        this.layerAmount = 4;
+        this.layers = [];
+        this.neuronsInLayer = [5, 4, 3, 2];
+        // create the neural network
+        for (let i = 0; i < this.layerAmount; i++) {
+            // either null or the prev/next layer based on current layer index
+            const previousLayer = i === 0 ? null : this.layers[i - 1];
+            const nextLayer = i === this.layerAmount - 1 ? null : this.layers[i + 1];
+            // create the next layer
+            const layer = new layer_1.default(this.neuronsInLayer[i], previousLayer, nextLayer);
+            this.layers.push(layer);
+            // loop through all of current layer's neurons and connect them to prev/next layer
+            for (let w = 0; w < layer.neuronAmount; w++) {
+                const current_neuron = layer.get(w);
+                current_neuron.previousLayer = previousLayer;
+                current_neuron.nextLayer = nextLayer;
+            }
+        }
+        // hopefully this works!!
+    }
+    /**
+     * returns the last layer - the output layer, which consists of two neurons: acceleration and turn velocity
+     *
+     * gotta refactor the control system bruh
+     */
+    evaluate() {
+        // feedforward - information only propagates forward
+        // start from the second one
+        for (let i = 1; i < this.layerAmount; i++) {
+            const currLayer = this.layers[i];
+            for (let k = 0; k < currLayer.neuronAmount; k++) {
+                const neuron = currLayer.get(k);
+                neuron.value = neuron.evaluate();
+            }
+        }
+        return this.layers[this.layerAmount - 1];
+    }
+}
+exports.default = AI;
+
+},{"./layer":2}],2:[function(require,module,exports){
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const neuron_1 = __importDefault(require("./neuron"));
+class Layer {
+    constructor(neuronAmount, previousLayer, nextLayer) {
+        this.neuronAmount = neuronAmount;
+        this.neurons = [];
+        for (let i = 0; i < neuronAmount; i++) {
+            this.neurons.push(new neuron_1.default(previousLayer, nextLayer));
+        }
+    }
+    /** returns neuron at `k` */
+    get(k) {
+        return this.neurons[k];
+    }
+    set(k, n) {
+        this.neurons[k].value = n;
+    }
+}
+exports.default = Layer;
+
+},{"./neuron":3}],3:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.sigmoid = void 0;
+function sigmoid(x) {
+    return 1 / (1 + Math.pow(Math.E, -x));
+}
+exports.sigmoid = sigmoid;
+class Neuron {
+    constructor(previousLayer, nextLayer) {
+        this.previousLayer = previousLayer;
+        this.nextLayer = nextLayer;
+        this.weight = Math.random() * 2 - 1;
+        this.bias = 0;
+        this.value = Math.random();
+    }
+    evaluate() {
+        let sum = 0;
+        if (this.previousLayer === null)
+            return this.value; // the input layer cant evaluate anything, just return initial value
+        for (let i = 0; i < this.previousLayer.neuronAmount; i++) {
+            sum += this.previousLayer.neurons[i].weight * this.value;
+        }
+        sum += this.bias;
+        return sigmoid(sum);
+    }
+}
+exports.default = Neuron;
+
+},{}],4:[function(require,module,exports){
+"use strict";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -35,22 +141,53 @@ todo:
 build a simple control system
 */
 const color = "red";
-const startingX = 0;
-const startingY = 0;
 const startingHeading = 0;
 const width = 10;
 const height = 20;
 const maxV = 200;
 const maxHeadingV = 3.5;
+class Sensor {
+    constructor(car, angle) {
+        this.car = car;
+        this.angle = angle;
+    }
+    /** returns a number that represents distance from closest edge */
+    sense() {
+        const direction = {
+            x: Math.cos(this.car.heading + this.angle - Math.PI / 2),
+            y: Math.sin(this.car.heading + this.angle - Math.PI / 2)
+        };
+        let t = 0;
+        // move in direction until first border pixel is met
+        while (true) { // dangerous!!!! no cap!!!! i hate while loops!!!
+            t += 0.25;
+            const x = Math.floor(this.car.x + direction.x * t);
+            const y = Math.floor(this.car.y + direction.y * t);
+            if (this.car.path.map[y][x] === path_1.PointType.Border) {
+                return {
+                    x: x,
+                    y: y
+                };
+            }
+        }
+    }
+}
 class Car extends renderedObj_1.default {
-    constructor(ctx) {
+    constructor(ctx, spawn, direction) {
         super(ctx);
-        this.path = new path_1.default([]);
-        this.setPose(startingX, startingY, startingHeading);
+        this.spawn = spawn;
+        this.path = new path_1.default([], { x: 0, y: 0 }, 0); // shitty code, but this is the only way
+        this.spawnDirection = 0;
+        this.sensors = [];
+        this.spawnDirection = direction;
+        this.setPose(spawn.x, spawn.y, direction);
         this.setDimensions(width, height);
         this.setColor(color);
         this.setMaxVelocity(maxV);
         this.setMaxHeadingVelocity(maxHeadingV);
+        for (let k = -Math.PI / 3; k <= Math.PI / 3; k += Math.PI / 6) {
+            this.sensors.push(new Sensor(this, k));
+        }
     }
     setPath(path) {
         this.path = path;
@@ -58,28 +195,32 @@ class Car extends renderedObj_1.default {
     collisionDetect() {
         // here is to check collisions and stuff
         const points = (0, utils_1.pixelate)(this);
-        let collided = false;
-        this.ctx.fillStyle = 'blue';
+        this.ctx.fillStyle = this.color;
         for (const p of points) {
             this.ctx.fillRect(p.x, p.y, 1, 1);
         }
         for (const p of points) {
             if (p.x >= 0 && p.x < this.path.map[0].length && p.y >= 0 && p.y < this.path.map.length) {
-                if (this.path.map[p.y][p.x] === path_1.PointType.Empty) {
-                    console.log('hello');
-                    this.color = 'green';
-                    collided = true;
-                    break;
+                const pixel = this.path.map[p.y][p.x];
+                if (pixel === path_1.PointType.Empty || pixel === path_1.PointType.Border) {
+                    // put the player back in the beginning
+                    this.x = this.spawn.x;
+                    this.y = this.spawn.y;
+                    this.heading = this.spawnDirection;
+                    this.a = 0;
+                    this.v = 0;
+                    this.headingA = 0;
+                    this.headingV = 0;
+                    return true;
                 }
             }
         }
-        if (!collided)
-            this.color = 'red';
+        return false;
     }
 }
 exports.default = Car;
 
-},{"./path":3,"./renderedObj":4,"./utils":5}],2:[function(require,module,exports){
+},{"./path":6,"./renderedObj":7,"./utils":8}],5:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -87,6 +228,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const car_1 = __importDefault(require("./car"));
 const path_1 = __importDefault(require("./path"));
+const ai_1 = __importDefault(require("./ai/ai"));
 const canvas = document.getElementById("canvas");
 if (!canvas || !(canvas instanceof HTMLCanvasElement))
     throw new Error("canvas does not exist");
@@ -114,16 +256,15 @@ let path; // use later for pixel detection stuff
 const image = new Image();
 image.onload = () => ctx.drawImage(image, 0, 0);
 image.src = '../src/pathImage.png';
-const car = new car_1.default(ctx);
+let car; // shitty code but this is the only way
+let ai;
 const keys = {
     forward: false,
     back: false,
     left: false,
     right: false
 };
-const init = () => {
-    car.setA(0);
-    car.setPose(canvas.width / 2, canvas.height / 2, car.getHeading());
+const manualControls = () => {
     document.addEventListener('keydown', (e) => {
         switch (e.code) {
             case "KeyW":
@@ -168,32 +309,31 @@ const init = () => {
                 break;
         }
     });
-    requestAnimationFrame(loop);
 };
 const processKeys = () => {
     if (keys.forward === keys.back) {
         car.setA(0);
-        car.setBrake(false);
     }
     else if (keys.forward) {
         car.setA(500);
-    }
-    else {
-        car.setBrake(true);
     }
     if (keys.left === keys.right) {
         car.setHeadingA(0);
     }
     else if (keys.left) {
-        if (car.getHeadingV() > 0)
+        if (car.headingV > 0)
             car.setHeadingV(0);
         car.setHeadingA(-100);
     }
     else {
-        if (car.getHeadingV() < 0)
+        if (car.headingV < 0)
             car.setHeadingV(0);
         car.setHeadingA(100);
     }
+};
+const init = () => {
+    //manualControls();
+    requestAnimationFrame(loop);
 };
 const reset = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -204,10 +344,27 @@ const loop = () => {
     time.updateTime();
     reset();
     path.draw(ctx, image);
-    processKeys();
     car.setDeltaTime(time.delatTime);
     car.move();
     car.render();
+    for (let i = 0; i < car.sensors.length; i++) {
+        const sensor = car.sensors[i];
+        const { x, y } = sensor.sense();
+        ctx.fillStyle = 'green';
+        ctx.fillRect(x - 5, y - 5, 10, 10);
+        // put the distance of each inside the neural network input layer - in this order
+        const distance = Math.sqrt((x - car.x) ** 2 + (y - car.y) ** 2);
+        const inputLayer = ai.layers[0];
+        inputLayer.set(i, distance);
+    }
+    const data = ai.evaluate();
+    const a = data.get(0).value;
+    const heading_v = data.get(1).value;
+    car.setA(a * 100);
+    car.setHeadingV(heading_v * 0.01);
+    if (car.collisionDetect()) {
+        // ai has to learn!! backpropagation omg ?!?!
+    }
     requestAnimationFrame(loop);
 };
 window.onload = () => {
@@ -216,24 +373,42 @@ window.onload = () => {
         return response.json();
     })
         .then((json) => {
-        path = new path_1.default(json.points);
-        let time1 = Date.now();
-        path.pixelate(canvas, 1);
-        let time2 = Date.now();
-        console.log('pixelation time taken: ' + (time2 - time1) / 1000 + ' s');
-        car.setPath(path);
-        time1 = Date.now();
-        path.setBorderPixels();
-        time2 = Date.now();
-        console.log('border pixelation time taken: ' + (time2 - time1) / 1000 + ' s');
-        init();
+        path = new path_1.default(json.points, json.spawn, json.direction);
+        fetch('../data/map.json')
+            .then((response) => {
+            return response.json();
+        })
+            .then((mapJson) => {
+            const _init = () => {
+                car.setPath(path);
+                path.setBorderPixels();
+                ai = new ai_1.default(path, car);
+                init();
+            };
+            car = new car_1.default(ctx, json.spawn, json.direction + Math.PI / 2);
+            if (mapJson.data === undefined) {
+                path.pixelate(canvas, 1);
+                const obj = {
+                    "data": path.map
+                };
+                const string = JSON.stringify(obj);
+                navigator.clipboard.writeText(string).then(() => {
+                    _init();
+                });
+            }
+            else {
+                path.map = mapJson.data;
+                _init();
+            }
+            ;
+        });
     })
         .catch((err) => {
         console.log(err);
     });
 };
 
-},{"./car":1,"./path":3}],3:[function(require,module,exports){
+},{"./ai/ai":1,"./car":4,"./path":6}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PointColors = exports.PointType = void 0;
@@ -241,6 +416,7 @@ var PointType;
 (function (PointType) {
     PointType[PointType["Road"] = 0] = "Road";
     PointType[PointType["Empty"] = 1] = "Empty";
+    PointType[PointType["Border"] = 2] = "Border";
 })(PointType = exports.PointType || (exports.PointType = {}));
 class PointColors {
 }
@@ -248,11 +424,11 @@ exports.PointColors = PointColors;
 PointColors.road = [255, 255, 255];
 PointColors.car = [255, 0, 0];
 class Path {
-    constructor(points) {
-        this.points = [];
-        this.map = [];
-        this.borderPixels = [];
+    constructor(points, spawn, direction) {
         this.points = points;
+        this.spawn = spawn;
+        this.direction = direction;
+        this.map = [];
     }
     draw(ctx, image) {
         ctx.drawImage(image, 0, 0);
@@ -275,16 +451,6 @@ class Path {
                     ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
                 }
             }
-        }
-    }
-    testBorderPixels(canvas, ctx, UNIT_WIDTH) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        for (let i = 0; i < this.borderPixels.length; i++) {
-            const { x, y } = this.borderPixels[i];
-            ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
         }
     }
     pixelate(canvas, UNIT_WIDTH) {
@@ -340,7 +506,7 @@ class Path {
                         }
                     }
                     if (isBorderPixel) {
-                        this.borderPixels.push({ x: x, y: y });
+                        this.map[y][x] = PointType.Border;
                         break;
                     }
                 }
@@ -350,7 +516,7 @@ class Path {
 }
 exports.default = Path;
 
-},{}],4:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class RenderedObject {
@@ -369,31 +535,12 @@ class RenderedObject {
         this.headingA = 0;
         this.maxV = 0;
         this.maxHeadingV = 0;
-        this.frictionA = 50;
-        this.frictionHeadingA = 5;
-        this.brakeFrictionA = 90; // this should be a control, but for rn lets put it as constant
-        this.braking = false;
-    }
-    getFrictionHeadingA() {
-        return this.frictionHeadingA;
     }
     setHeadingV(v) {
         this.headingV = v;
     }
-    getHeading() {
-        return this.heading;
-    }
-    getHeadingV() {
-        return this.headingV;
-    }
-    getBrakeFrictionA() {
-        return this.brakeFrictionA;
-    }
     setDeltaTime(deltaTime) {
         this.deltaTime = deltaTime;
-    }
-    setBrake(state) {
-        this.braking = state;
     }
     setPose(x, y, heading) {
         this.x = x;
@@ -419,38 +566,17 @@ class RenderedObject {
     setHeadingA(a) {
         this.headingA = a;
     }
-    getV() {
-        return this.v;
-    }
     move() {
         this.x += this.v * Math.cos(this.heading - Math.PI / 2) * this.deltaTime;
         this.y += this.v * Math.sin(this.heading - Math.PI / 2) * this.deltaTime;
-        this.heading += this.headingV * this.deltaTime;
-        if (this.braking) {
-            const sign = Math.sign(this.v);
-            this.v -= sign * this.brakeFrictionA;
-            if (this.v * sign < 0) {
-                this.v = 0;
-            }
-        }
-        else if (this.a === 0 && this.v !== 0) { // object slowing down from rolling friction
-            const oldSign = Math.sign(this.v);
-            this.v -= this.frictionA;
-            if (Math.sign(this.v) * oldSign < 0) {
-                this.v = 0;
-            }
-        }
-        if (this.headingA === 0 && this.headingV !== 0) { // obj heading stoping from kinetic friction
-            const sign = Math.sign(this.headingV);
-            this.headingV -= sign * this.frictionHeadingA;
-            if (this.headingV * sign < 0) {
-                this.headingV = 0;
-            }
-        }
+        this.heading += this.headingV;
         this.v += this.a * this.deltaTime;
         this.headingV += this.headingA * this.deltaTime;
         if (this.v >= this.maxV) {
             this.v = this.maxV;
+        }
+        if (this.v < 0) {
+            this.v = 0;
         }
         if (Math.abs(this.headingV) >= this.maxHeadingV) {
             this.headingV = Math.sign(this.headingV) * this.maxHeadingV;
@@ -459,7 +585,6 @@ class RenderedObject {
     render() {
         if (this.color === "")
             throw new Error("no color given");
-        this.collisionDetect();
         this.ctx.save();
         this.ctx.translate(this.x, this.y);
         this.ctx.rotate(this.heading);
@@ -471,7 +596,7 @@ class RenderedObject {
 }
 exports.default = RenderedObject;
 
-},{}],5:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.round = exports.pixelate = exports.lerp = exports.Line = exports.UNIT_WIDTH = void 0;
@@ -556,4 +681,4 @@ exports.round = round;
 // todo: rewrite the pixelation stuff
 // probs should make a test html to try this stuff out firstt
 
-},{}]},{},[2]);
+},{}]},{},[5]);

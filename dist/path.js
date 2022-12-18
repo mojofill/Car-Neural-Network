@@ -5,6 +5,7 @@ var PointType;
 (function (PointType) {
     PointType[PointType["Road"] = 0] = "Road";
     PointType[PointType["Empty"] = 1] = "Empty";
+    PointType[PointType["Border"] = 2] = "Border";
 })(PointType = exports.PointType || (exports.PointType = {}));
 class PointColors {
 }
@@ -12,11 +13,11 @@ exports.PointColors = PointColors;
 PointColors.road = [255, 255, 255];
 PointColors.car = [255, 0, 0];
 class Path {
-    constructor(points) {
-        this.points = [];
-        this.map = [];
-        this.borderPixels = [];
+    constructor(points, spawn, direction) {
         this.points = points;
+        this.spawn = spawn;
+        this.direction = direction;
+        this.map = [];
     }
     draw(ctx, image) {
         ctx.drawImage(image, 0, 0);
@@ -39,16 +40,6 @@ class Path {
                     ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
                 }
             }
-        }
-    }
-    testBorderPixels(canvas, ctx, UNIT_WIDTH) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        for (let i = 0; i < this.borderPixels.length; i++) {
-            const { x, y } = this.borderPixels[i];
-            ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
         }
     }
     pixelate(canvas, UNIT_WIDTH) {
@@ -104,7 +95,7 @@ class Path {
                         }
                     }
                     if (isBorderPixel) {
-                        this.borderPixels.push({ x: x, y: y });
+                        this.map[y][x] = PointType.Border;
                         break;
                     }
                 }

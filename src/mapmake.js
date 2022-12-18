@@ -30,6 +30,13 @@ function lerp(p, r, t) {
     }
 }
 
+const spawn = {
+    x: null,
+    y: null
+}
+
+const directionPoint = {x: null, y: null};
+
 function drawP(p) {
     ctx.fillStyle = POINT_COLOR;
     ctx.fillRect(p.x-5, p.y-5, 10, 10);
@@ -37,6 +44,34 @@ function drawP(p) {
 
 function init() {
     document.addEventListener("mousedown", (e) => {
+        if (e.shiftKey) {
+            if (spawn.x !== null || spawn.y !== null) {
+                ctx.clearRect(spawn.x - 5, spawn.y - 5, 10, 10);
+            }
+            
+            spawn.x = e.x;
+            spawn.y = e.y;
+            ctx.fillStyle = 'red';
+            ctx.fillRect(spawn.x - 5, spawn.y - 5, 10, 10);
+
+            draw(points);
+            return;
+        }
+
+        if (e.button) {
+            if (directionPoint.x !== null || directionPoint.y !== null) {
+                ctx.clearRect(directionPoint.x - 5, directionPoint.y - 5, 10, 10);
+            }
+            
+            directionPoint.x = e.x;
+            directionPoint.y = e.y;
+            ctx.fillStyle = 'green';
+            ctx.fillRect(directionPoint.x - 5, directionPoint.y - 5, 10, 10);
+
+            draw(points);
+            return;
+        }
+
         const p = {x: e.x, y: e.y};
         drawP(p);
         points.push(p);
@@ -64,6 +99,17 @@ function draw(points) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = BACKGROUND_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (spawn.x !== null || spawn.y !== null) {
+        ctx.fillStyle = 'red';
+        ctx.fillRect(spawn.x - 5, spawn.y - 5, 10, 10);
+    }
+
+    if (directionPoint.x !== null || directionPoint.y !== null) {
+        ctx.fillStyle = 'green';
+        ctx.fillRect(directionPoint.x - 5, directionPoint.y - 5, 10, 10);
+    }
+
     for (const p of points) drawP(p);
     ctx.beginPath();
     ctx.strokeStyle = POINT_COLOR;
@@ -105,10 +151,15 @@ function draw(points) {
 }
 
 function renderPath(ctx, pathWidth) {
-    //for (const p of points) drawP(p);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (spawn.x !== null || spawn.y !== null) {
+        ctx.fillStyle = 'red';
+        ctx.fillRect(spawn.x - 5, spawn.y - 5, 10, 10);
+    }
+
     ctx.beginPath();
     ctx.strokeStyle = "white";
     for (let t = 0; t <= 1; t += 0.0001) {
@@ -152,7 +203,9 @@ function renderPath(ctx, pathWidth) {
 function exportData() {
     const data = JSON.stringify(
     {
-        "points": points
+        "points": points,
+        "spawn": spawn,
+        "direction": Math.atan2(directionPoint.y - spawn.y, directionPoint.x - spawn.x)
     }, null, 4);
 
     renderPath(ctx, 50);

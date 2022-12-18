@@ -1,7 +1,7 @@
-import { Point, Line, lerp } from './utils';
+import { Point } from './utils';
 
 export enum PointType {
-    Road, Empty
+    Road, Empty, Border
 }
 
 export class PointColors {
@@ -10,13 +10,9 @@ export class PointColors {
 }
 
 export default class Path {
-    public points: Array<Point> = [];
     public map: Array<Array<PointType>> = [];
-    public borderPixels: Array<Point> = [];
 
-    constructor(points: Array<Point>) {
-        this.points = points;
-    }
+    constructor(public points: Array<Point>, public spawn: Point, public direction: number) {}
 
     public draw(ctx: CanvasRenderingContext2D, image: CanvasImageSource) {
         ctx.drawImage(image, 0, 0);
@@ -40,17 +36,6 @@ export default class Path {
                     ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
                 }
             }
-        }
-    }
-
-    public testBorderPixels(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, UNIT_WIDTH: number) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0 ,0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        for (let i = 0; i < this.borderPixels.length; i++) {
-            const { x, y } = this.borderPixels[i];
-            ctx.fillRect(x * UNIT_WIDTH, y * UNIT_WIDTH, UNIT_WIDTH, UNIT_WIDTH);
         }
     }
 
@@ -105,7 +90,7 @@ export default class Path {
                         }
                     }
                     if (isBorderPixel) {
-                        this.borderPixels.push({x: x, y: y});
+                        this.map[y][x] = PointType.Border;
                         break;
                     }
                 }
