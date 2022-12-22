@@ -36,7 +36,7 @@ image.src = '../src/pathImage.png';
 
 // todo, build a whole lotta cars
 const AIs: Array<AI> = [];
-const AIAmount = 10;
+const AIAmount = 1;
 
 let deadAIAmount = 0;
 let sortedAIs = []; // ass name, basically sorts the AI's from the worst to best
@@ -94,6 +94,9 @@ const loop = () => {
         if (car.collisionDetect()) {
             // i need a fitness function
             // update distance covered first, then i can get fitness with distance/time
+            ai.updateDistanceTraveled();
+            // put the player back in the beginning
+            car.respawn();
         }
         else {
             ai.timeAlive += time.deltaTime;

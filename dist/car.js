@@ -34,7 +34,6 @@ todo:
 build a simple control system
 */
 const color = "red";
-const startingHeading = 0;
 const width = 10;
 const height = 20;
 const maxV = 200;
@@ -56,6 +55,10 @@ class Sensor {
             t += 0.25;
             const x = Math.floor(this.car.x + direction.x * t);
             const y = Math.floor(this.car.y + direction.y * t);
+            if (y >= this.car.path.map.length || x >= this.car.path.map[0].length || x < 0 || y < 0) {
+                this.car.respawn();
+                return this.sense();
+            }
             if (this.car.path.map[y][x] === path_1.PointType.Border) {
                 return {
                     x: x,
@@ -96,19 +99,20 @@ class Car extends renderedObj_1.default {
             if (p.x >= 0 && p.x < this.path.map[0].length && p.y >= 0 && p.y < this.path.map.length) {
                 const pixel = this.path.map[p.y][p.x];
                 if (pixel === path_1.PointType.Empty || pixel === path_1.PointType.Border) {
-                    // put the player back in the beginning
-                    this.x = this.spawn.x;
-                    this.y = this.spawn.y;
-                    this.heading = this.spawnDirection;
-                    this.a = 0;
-                    this.v = 0;
-                    this.headingA = 0;
-                    this.headingV = 0;
                     return true;
                 }
             }
         }
         return false;
+    }
+    respawn() {
+        this.x = this.spawn.x;
+        this.y = this.spawn.y;
+        this.heading = this.spawnDirection;
+        this.a = 0;
+        this.v = 0;
+        this.headingA = 0;
+        this.headingV = 0;
     }
 }
 exports.default = Car;

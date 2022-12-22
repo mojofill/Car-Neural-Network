@@ -1,6 +1,7 @@
 import Car from '../car';
 import Path from '../path';
 import Layer from './layer';
+import { Line, lerp, Point, PATH_WIDTH } from '../utils';
 
 // start off simple - simply create a neural network that doesnt learn yet
 export default class AI {
@@ -80,10 +81,64 @@ export default class AI {
 
     public translateOutput(a: number, heading_v: number) {
         this.car.setA(a * 100);
-        this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV * 0.1);
+        // testing!! remove zero after
+        this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV * 0.1 * 0);
     }
 
     public getFitness() {
         return this.distanceCovered / this.timeAlive;
+    }
+
+    public updateDistanceTraveled() {
+        const points = this.path.points;
+        const car = this.car;
+        // slowly create the pathway again with the points, return t value where it is the closest
+        let minD;
+        for (let t = 0; t <= 1; t += 0.0001) {
+            // first test: lerp between all the points in order
+            // WRONG - this needs to be recursive
+            function recurse(lines: Array<Line>, t: number) : Point {
+                // return when there is just one line left
+                // stupid ass bug wtf
+                if (points.length === 1) return points[0];
+                if (lines.length === 1) {
+                    return lerp(lines[0].p, lines[0].r, t);
+                }
+    
+                // find the lerped point of each line
+                const lerpedPoints = [];
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    lerpedPoints.push(lerp(line.p, line.r, t));
+                }
+                const newLines = [];
+                for (let i = 0; i < lerpedPoints.length - 1; i++) {
+                    newLines.push(new Line(lerpedPoints[i], lerpedPoints[i+1]));
+                }
+    
+                return recurse(newLines, t);
+            }
+    
+            // create the first set of lines
+            const lines = [];
+            for (let i = 0; i < points.length - 1; i++) {
+                lines.push(new Line(points[i], points[i+1]));
+            }
+    
+            const { x, y } = recurse(lines, t); // point at t
+            const d = Math.sqrt((x - car.x) ** 2 + (y - car.y) ** 2);
+            
+            if (d > PATH_WIDTH) {
+                continue;
+            }
+            if (minD === undefined) minD = d;
+            else {
+                if (d >= minD) {
+                    this.distanceCovered = t;
+                    return;
+                }
+                else minD = d;
+            }
+        }
     }
 }

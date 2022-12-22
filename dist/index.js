@@ -35,8 +35,9 @@ image.onload = () => ctx.drawImage(image, 0, 0);
 image.src = '../src/pathImage.png';
 // todo, build a whole lotta cars
 const AIs = [];
-const AIAmount = 10;
-let ai;
+const AIAmount = 1;
+let deadAIAmount = 0;
+let sortedAIs = []; // ass name, basically sorts the AI's from the worst to best
 const keys = {
     forward: false,
     back: false,
@@ -73,8 +74,16 @@ const loop = () => {
         const a = data.get(0).value;
         const heading_v = data.get(1).value;
         ai.translateOutput(a, heading_v);
+        // record how far along the cars have gone, the two cars that went the farthest produce the new batch of cars, where the children plus to two cars equal the AIAmount
         if (car.collisionDetect()) {
-            // ai has to learn!! backpropagation omg ?!?!
+            // i need a fitness function
+            // update distance covered first, then i can get fitness with distance/time
+            ai.updateDistanceTraveled();
+            // put the player back in the beginning
+            car.respawn();
+        }
+        else {
+            ai.timeAlive += time.deltaTime;
         }
     }
     requestAnimationFrame(loop);

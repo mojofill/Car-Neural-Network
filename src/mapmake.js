@@ -111,16 +111,17 @@ function draw(points) {
     }
 
     for (const p of points) drawP(p);
+    
+    if (points.length === 1) return;
+
     ctx.beginPath();
     ctx.strokeStyle = POINT_COLOR;
     for (let t = 0; t <= 1; t += 0.0001) {
         // first test: lerp between all the points in order
-        // WRONG - this needs to be recursive
         function recurse(lines, t) {
-            // return when there is just one line left
-            if (lines.length === 0) return;
             if (lines.length === 1) {
-                const {x, y} = lerp(lines[0].p, lines[0].r, t); 
+                const {x, y} = lerp(lines[0].p, lines[0].r, t);
+                document.title = '2';
                 ctx.lineTo(x, y);
                 return;
             }

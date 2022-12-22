@@ -10,8 +10,6 @@ build a simple control system
 
 const color = "red";
 
-const startingHeading = 0;
-
 const width = 10;
 const height = 20;
 
@@ -21,7 +19,7 @@ const maxHeadingV: number = 3.5;
 class Sensor {
     constructor(private car: Car, public angle: number) {}
     /** returns a number that represents distance from closest edge */
-    sense() {
+    sense() : Point {
         const direction = {
             x: Math.cos(this.car.heading + this.angle - Math.PI / 2),
             y: Math.sin(this.car.heading + this.angle - Math.PI / 2)
@@ -32,6 +30,10 @@ class Sensor {
             t += 0.25;
             const x = Math.floor(this.car.x + direction.x * t);
             const y = Math.floor(this.car.y + direction.y * t);
+            if (y >= this.car.path.map.length || x >= this.car.path.map[0].length || x < 0 || y < 0) {
+                this.car.respawn();
+                return this.sense();
+            }
             if (this.car.path.map[y][x] === PointType.Border) {
                 return {
                     x: x,
@@ -77,19 +79,20 @@ export default class Car extends RenderedObject {
             if (p.x >= 0 && p.x < this.path.map[0].length && p.y >= 0 && p.y < this.path.map.length) {
                 const pixel = this.path.map[p.y][p.x];
                 if (pixel === PointType.Empty || pixel === PointType.Border) {
-                    // put the player back in the beginning
-                    this.x = this.spawn.x;
-                    this.y = this.spawn.y;
-                    this.heading = this.spawnDirection;
-                    this.a = 0;
-                    this.v = 0;
-                    this.headingA = 0;
-                    this.headingV = 0;
-
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    public respawn() {
+        this.x = this.spawn.x;
+        this.y = this.spawn.y;
+        this.heading = this.spawnDirection;
+        this.a = 0;
+        this.v = 0;
+        this.headingA = 0;
+        this.headingV = 0;
     }
 }

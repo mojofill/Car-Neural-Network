@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const layer_1 = __importDefault(require("./layer"));
+const utils_1 = require("../utils");
 // start off simple - simply create a neural network that doesnt learn yet
 class AI {
     constructor(path, car) {
@@ -13,6 +14,8 @@ class AI {
         this.layerAmount = 4;
         this.layers = [];
         this.neuronsInLayer = [5, 4, 3, 2];
+        this.timeAlive = 0;
+        this.distanceCovered = 0;
         // create the neural network
         for (let i = 0; i < this.layerAmount; i++) {
             // either null or the prev/next layer based on current layer index
@@ -20,13 +23,13 @@ class AI {
             const nextLayer = i === this.layerAmount - 1 ? null : this.layers[i + 1];
             // create the next layer
             const layer = new layer_1.default(this.neuronsInLayer[i], previousLayer, nextLayer);
-            this.layers.push(layer);
             // loop through all of current layer's neurons and connect them to prev/next layer
             for (let w = 0; w < layer.neuronAmount; w++) {
                 const current_neuron = layer.get(w);
                 current_neuron.previousLayer = previousLayer;
                 current_neuron.nextLayer = nextLayer;
             }
+            this.layers.push(layer);
         }
         // hopefully this works!!
     }
@@ -47,16 +50,88 @@ class AI {
         }
         return this.layers[this.layerAmount - 1];
     }
+    /** return a dummy neural network with the same coefficients and biases */
     copy() {
+        let ai = new AI(this.path, this.car);
+        // create the neural network
+        for (let i = 0; i < this.layerAmount; i++) {
+            // either null or the prev/next layer based on current layer index
+            const previousLayer = i === 0 ? null : this.layers[i - 1];
+            const nextLayer = i === this.layerAmount - 1 ? null : this.layers[i + 1];
+            // create the next layer
+            const layer = new layer_1.default(this.neuronsInLayer[i], previousLayer, nextLayer);
+            // loop through all of current layer's neurons and connect them to prev/next layer
+            for (let w = 0; w < layer.neuronAmount; w++) {
+                const current_neuron = layer.get(w);
+                current_neuron.previousLayer = previousLayer;
+                current_neuron.nextLayer = nextLayer;
+            }
+            ai.layers.push(layer);
+        }
+        return ai;
     }
     translateOutput(a, heading_v) {
         this.car.setA(a * 100);
-        this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV * 0.1);
+        // testing!! remove zero after
+        this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV * 0.1 * 0);
+    }
+    getFitness() {
+        return this.distanceCovered / this.timeAlive;
+    }
+    updateDistanceTraveled() {
+        const points = this.path.points;
+        const car = this.car;
+        // slowly create the pathway again with the points, return t value where it is the closest
+        let minD;
+        for (let t = 0; t <= 1; t += 0.0001) {
+            // first test: lerp between all the points in order
+            // WRONG - this needs to be recursive
+            function recurse(lines, t) {
+                // return when there is just one line left
+                // stupid ass bug wtf
+                if (points.length === 1)
+                    return points[0];
+                if (lines.length === 1) {
+                    return (0, utils_1.lerp)(lines[0].p, lines[0].r, t);
+                }
+                // find the lerped point of each line
+                const lerpedPoints = [];
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    lerpedPoints.push((0, utils_1.lerp)(line.p, line.r, t));
+                }
+                const newLines = [];
+                for (let i = 0; i < lerpedPoints.length - 1; i++) {
+                    newLines.push(new utils_1.Line(lerpedPoints[i], lerpedPoints[i + 1]));
+                }
+                return recurse(newLines, t);
+            }
+            // create the first set of lines
+            const lines = [];
+            for (let i = 0; i < points.length - 1; i++) {
+                lines.push(new utils_1.Line(points[i], points[i + 1]));
+            }
+            const { x, y } = recurse(lines, t);
+            const d = Math.sqrt((x - car.x) ** 2 + (y - car.y) ** 2);
+            if (d > utils_1.PATH_WIDTH) {
+                continue;
+            }
+            if (minD === undefined)
+                minD = d;
+            else {
+                if (d >= minD) {
+                    this.distanceCovered = t;
+                    return;
+                }
+                else
+                    minD = d;
+            }
+        }
     }
 }
 exports.default = AI;
 
-},{"./layer":2}],2:[function(require,module,exports){
+},{"../utils":8,"./layer":2}],2:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -147,7 +222,6 @@ todo:
 build a simple control system
 */
 const color = "red";
-const startingHeading = 0;
 const width = 10;
 const height = 20;
 const maxV = 200;
@@ -169,6 +243,10 @@ class Sensor {
             t += 0.25;
             const x = Math.floor(this.car.x + direction.x * t);
             const y = Math.floor(this.car.y + direction.y * t);
+            if (y >= this.car.path.map.length || x >= this.car.path.map[0].length || x < 0 || y < 0) {
+                this.car.respawn();
+                return this.sense();
+            }
             if (this.car.path.map[y][x] === path_1.PointType.Border) {
                 return {
                     x: x,
@@ -209,19 +287,20 @@ class Car extends renderedObj_1.default {
             if (p.x >= 0 && p.x < this.path.map[0].length && p.y >= 0 && p.y < this.path.map.length) {
                 const pixel = this.path.map[p.y][p.x];
                 if (pixel === path_1.PointType.Empty || pixel === path_1.PointType.Border) {
-                    // put the player back in the beginning
-                    this.x = this.spawn.x;
-                    this.y = this.spawn.y;
-                    this.heading = this.spawnDirection;
-                    this.a = 0;
-                    this.v = 0;
-                    this.headingA = 0;
-                    this.headingV = 0;
                     return true;
                 }
             }
         }
         return false;
+    }
+    respawn() {
+        this.x = this.spawn.x;
+        this.y = this.spawn.y;
+        this.heading = this.spawnDirection;
+        this.a = 0;
+        this.v = 0;
+        this.headingA = 0;
+        this.headingV = 0;
     }
 }
 exports.default = Car;
@@ -264,8 +343,9 @@ image.onload = () => ctx.drawImage(image, 0, 0);
 image.src = '../src/pathImage.png';
 // todo, build a whole lotta cars
 const AIs = [];
-const AIAmount = 10;
-let ai;
+const AIAmount = 1;
+let deadAIAmount = 0;
+let sortedAIs = []; // ass name, basically sorts the AI's from the worst to best
 const keys = {
     forward: false,
     back: false,
@@ -302,8 +382,16 @@ const loop = () => {
         const a = data.get(0).value;
         const heading_v = data.get(1).value;
         ai.translateOutput(a, heading_v);
+        // record how far along the cars have gone, the two cars that went the farthest produce the new batch of cars, where the children plus to two cars equal the AIAmount
         if (car.collisionDetect()) {
-            // ai has to learn!! backpropagation omg ?!?!
+            // i need a fitness function
+            // update distance covered first, then i can get fitness with distance/time
+            ai.updateDistanceTraveled();
+            // put the player back in the beginning
+            car.respawn();
+        }
+        else {
+            ai.timeAlive += time.deltaTime;
         }
     }
     requestAnimationFrame(loop);
@@ -542,8 +630,9 @@ exports.default = RenderedObject;
 },{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.round = exports.pixelate = exports.lerp = exports.Line = exports.UNIT_WIDTH = void 0;
+exports.round = exports.pixelate = exports.lerp = exports.Line = exports.PATH_WIDTH = exports.UNIT_WIDTH = void 0;
 exports.UNIT_WIDTH = 1;
+exports.PATH_WIDTH = 50;
 class Line {
     constructor(p, r) {
         this.p = p;

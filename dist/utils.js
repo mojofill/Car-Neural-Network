@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.round = exports.pixelate = exports.lerp = exports.Line = exports.UNIT_WIDTH = void 0;
+exports.round = exports.pixelate = exports.lerp = exports.Line = exports.PATH_WIDTH = exports.UNIT_WIDTH = void 0;
 exports.UNIT_WIDTH = 1;
+exports.PATH_WIDTH = 50;
 class Line {
     constructor(p, r) {
         this.p = p;
