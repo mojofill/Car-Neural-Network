@@ -1,8 +1,7 @@
-import path from "path";
 import AI from "./ai/ai";
 import Path, { PointType } from "./path";
 import RenderedObject from "./renderedObj";
-import { pixelate, UNIT_WIDTH, Point } from './utils';
+import { pixelate, Point } from './utils';
 
 /*
 todo:
@@ -27,7 +26,6 @@ class Sensor {
             x: Math.cos(this.car.heading + this.angle - Math.PI / 2),
             y: Math.sin(this.car.heading + this.angle - Math.PI / 2)
         };
-
         let t = 0;
         // move in direction until first border pixel is met
         while (true) { // dangerous!!!! no cap!!!! i hate while loops!!!

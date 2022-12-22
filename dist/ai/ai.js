@@ -46,5 +46,11 @@ class AI {
         }
         return this.layers[this.layerAmount - 1];
     }
+    copy() {
+    }
+    translateOutput(a, heading_v) {
+        this.car.setA(a * 100);
+        this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV * 0.1);
+    }
 }
 exports.default = AI;

@@ -16,8 +16,8 @@ export default abstract class RenderedObject {
     public a: number = 0;
     public headingA: number = 0;
     
-    private maxV: number = 0;
-    private maxHeadingV: number = 0;
+    public maxV: number = 0;
+    public maxHeadingV: number = 0;
 
     constructor(
         public ctx: CanvasRenderingContext2D

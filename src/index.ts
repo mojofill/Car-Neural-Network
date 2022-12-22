@@ -1,7 +1,6 @@
 import Car from "./car";
 import Path from './path';
 import AI from "./ai/ai";
-import Layer from "./ai/layer";
 
 const canvas = document.getElementById("canvas");
 
@@ -25,7 +24,7 @@ const time = {
         this.past = this.curr;
         this.curr = Date.now() / 1000;
     },
-    get delatTime() {
+    get deltaTime() {
         return this.curr - this.past;
     }
 }
@@ -35,84 +34,18 @@ const image = new Image();
 image.onload = () => ctx.drawImage(image, 0, 0);
 image.src = '../src/pathImage.png';
 
-let car: Car; // shitty code but this is the only way
+// todo, build a whole lotta cars
+const AIs: Array<AI> = [];
+const AIAmount = 10;
 
-let ai: AI;
+let deadAIAmount = 0;
+let sortedAIs = []; // ass name, basically sorts the AI's from the worst to best
 
 const keys = {
     forward: false,
     back: false,
     left: false,
     right: false
-}
-
-const manualControls = () => {
-    document.addEventListener('keydown', (e) => {
-        switch(e.code) {
-            case "KeyW":
-            case "ArrowUp":
-                e.preventDefault();
-            keys.forward = true;
-                break;
-            case "KeyS":
-            case "ArrowDown":
-                e.preventDefault();
-            keys.back = true;
-                break;
-            case "ArrowLeft":
-            case "KeyA":
-                e.preventDefault();
-            keys.left = true;
-                break;
-            case "ArrowRight":
-            case "KeyD":
-                e.preventDefault();
-            keys.right = true;
-                break;
-        }
-    });
-
-    document.addEventListener('keyup', (e) => {
-        switch(e.code) {
-            case "KeyW":
-            case "ArrowUp":
-                keys.forward = false;
-                break;
-            case "KeyS":
-            case "ArrowDown":
-                keys.back = false;
-                break;
-            case "ArrowLeft":
-            case "KeyA":
-                keys.left = false;
-                break;
-            case "ArrowRight":
-            case "KeyD":
-                keys.right = false;
-                break;
-        }
-    });
-}
-const processKeys = () => {
-    if (keys.forward === keys.back) {
-        car.setA(0);
-    }
-    else if (keys.forward) {
-        car.setA(500);
-    }
-
-    if (keys.left === keys.right) {
-        car.setHeadingA(0);
-    }
-
-    else if (keys.left) {
-        if (car.headingV > 0) car.setHeadingV(0);
-        car.setHeadingA(-100);
-    }
-    else {
-        if (car.headingV < 0) car.setHeadingV(0);
-        car.setHeadingA(100);
-    }
 }
 
 const init = () => {
@@ -133,32 +66,38 @@ const loop = () => {
 
     path.draw(ctx, image);
 
-    car.setDeltaTime(time.delatTime);
-    
-    car.move();
-    car.render();
+    for (const ai of AIs) {
+        const car = ai.car;
 
-    for (let i = 0; i < car.sensors.length; i++) {
-        const sensor = car.sensors[i];
-        const { x, y } = sensor.sense();
-        ctx.fillStyle = 'green';
-        ctx.fillRect(x-5, y-5, 10, 10);
-        // put the distance of each inside the neural network input layer - in this order
-        const distance = Math.sqrt((x - car.x) ** 2 + (y - car.y) ** 2);
-        const inputLayer = ai.layers[0];
-        inputLayer.set(i, distance);
-    }
+        car.setDeltaTime(time.deltaTime);
+        
+        car.move();
+        car.render();
 
-    const data = ai.evaluate();
-    const a = data.get(0).value;
-    const heading_v = data.get(1).value;
+        for (let i = 0; i < car.sensors.length; i++) {
+            const sensor = car.sensors[i];
+            const { x, y } = sensor.sense();
+            // put the distance of each inside the neural network input layer - in this order
+            const distance = Math.sqrt((x - car.x) ** 2 + (y - car.y) ** 2);
+            const inputLayer = ai.layers[0];
+            inputLayer.set(i, distance);
+        }
 
-    car.setA(a * 100);
-    car.setHeadingV(heading_v * 0.01);
+        const data = ai.evaluate();
+        const a = data.get(0).value;
+        const heading_v = data.get(1).value;
 
-    if (car.collisionDetect()) {
-        // ai has to learn!! backpropagation omg ?!?!
-        ai.learn();
+        ai.translateOutput(a, heading_v);
+
+        // record how far along the cars have gone, the two cars that went the farthest produce the new batch of cars, where the children plus to two cars equal the AIAmount
+
+        if (car.collisionDetect()) {
+            // i need a fitness function
+            // update distance covered first, then i can get fitness with distance/time
+        }
+        else {
+            ai.timeAlive += time.deltaTime;
+        }
     }
 
     requestAnimationFrame(loop);
@@ -178,13 +117,9 @@ window.onload = () => {
         })
         .then((mapJson) => {
             const _init = () => {
-                car.setPath(path);
                 path.setBorderPixels();
-                ai = new AI(path, car);
                 init();
             }
-
-            car = new Car(ctx, json.spawn, json.direction + Math.PI / 2);
 
             if (mapJson.data === undefined) {
                 path.pixelate(canvas, 1);
@@ -201,6 +136,11 @@ window.onload = () => {
             }
             else {
                 path.map = mapJson.data;
+                for (let i = 0; i < AIAmount; i++) {
+                    const ai = new AI(path, new Car(ctx, json.spawn, json.direction + Math.PI / 2));
+                    ai.car.setPath(path);
+                    AIs.push(ai);
+                }
                 _init();
             };
         })
