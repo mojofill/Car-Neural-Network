@@ -19,6 +19,9 @@ export default abstract class RenderedObject {
     public maxV: number = 0;
     public maxHeadingV: number = 0;
 
+    public hidden: boolean = false;
+    public isHiding: boolean = false;
+
     constructor(
         public ctx: CanvasRenderingContext2D
     ) {}
@@ -62,20 +65,26 @@ export default abstract class RenderedObject {
         this.headingA = a;
     }
 
+    public wait() {
+        this.isHiding = true;
+    }
+
+    public start() {
+        this.isHiding = false;
+    }
+
     public move() {
+        if (this.isHiding) return;
+
         this.x += this.v * Math.cos(this.heading - Math.PI / 2) * this.deltaTime;
         this.y += this.v * Math.sin(this.heading - Math.PI / 2) * this.deltaTime;
-        this.heading += this.headingV;
+        this.heading += this.headingV * this.deltaTime;
 
         this.v += this.a * this.deltaTime;
         this.headingV += this.headingA * this.deltaTime;
 
-        if (this.v >= this.maxV) {
-            this.v = this.maxV;
-        }
-
-        if (this.v < 0) {
-            this.v = 0;
+        if (Math.abs(this.v) >= this.maxV) {
+            this.v = Math.sign(this.v) * this.maxV;
         }
 
         if (Math.abs(this.headingV) >= this.maxHeadingV) {
@@ -88,8 +97,17 @@ export default abstract class RenderedObject {
 
     public abstract collisionDetect(): void;
 
+    public hide() {
+        this.hidden = true;
+    }
+
+    public show() {
+        this.hidden = false;
+    }
+
     public render() {
         if (this.color === "") throw new Error("no color given");
+        if (this.hidden) return;
 
         this.ctx.save();
         this.ctx.translate(this.x, this.y);

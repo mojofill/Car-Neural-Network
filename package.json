@@ -4,7 +4,7 @@
   "description": "",
   "main": "script.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npx tsc --project tsconfig.json && browserify ./dist/manual.js > ./dist/bundleManaul.js",
     "start": "npx tsc --project tsconfig.json && browserify ./dist/index.js > ./dist/bundle.js"
   },
   "keywords": [],

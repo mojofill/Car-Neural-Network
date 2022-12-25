@@ -14,7 +14,7 @@ const width = 10;
 const height = 20;
 
 const maxV = 200;
-const maxHeadingV: number = 3.5;
+const maxHeadingV: number = 5;
 
 class Sensor {
     constructor(private car: Car, public angle: number) {}
@@ -45,11 +45,12 @@ class Sensor {
 }
 
 export default class Car extends RenderedObject {
-    public path: Path = new Path([], {x: 0, y: 0}, 0); // shitty code, but this is the only way
     public spawnDirection: number = 0;
     public sensors: Array<Sensor> = [];
+    public dead: boolean = false;
+    public timeAlive: number = 0;
 
-    constructor(ctx: CanvasRenderingContext2D, public spawn: Point, direction: number) {
+    constructor(ctx: CanvasRenderingContext2D, public spawn: Point, public direction: number, public path: Path) {
         super(ctx);
         this.spawnDirection = direction;
         this.setPose(spawn.x, spawn.y, direction);
@@ -59,22 +60,24 @@ export default class Car extends RenderedObject {
         this.setMaxVelocity(maxV);
         this.setMaxHeadingVelocity(maxHeadingV);
 
-        for (let k = -Math.PI / 3; k <= Math.PI / 3; k += Math.PI / 6) {
+        for (let k = -Math.PI / 3; k <= Math.PI / 3; k += Math.PI / 12) {
             this.sensors.push(new Sensor(this, k));
         }
     }
 
-    public setPath(path: Path) {
-        this.path = path;
+    public isDead(): boolean {
+        return this.collisionDetect() || this.dead;
+    }
+
+    public die() {
+        this.dead = true;
     }
 
     public collisionDetect(): boolean {
+        if (this.hidden || this.isHiding) return false;
+
         // here is to check collisions and stuff
         const points = pixelate(this);
-        this.ctx.fillStyle = this.color;
-        for (const p of points) {
-            this.ctx.fillRect(p.x, p.y, 1, 1);
-        }
         for (const p of points) {
             if (p.x >= 0 && p.x < this.path.map[0].length && p.y >= 0 && p.y < this.path.map.length) {
                 const pixel = this.path.map[p.y][p.x];
@@ -87,6 +90,8 @@ export default class Car extends RenderedObject {
     }
 
     public respawn() {
+        this.isHiding = false;
+        this.hidden = false;
         this.x = this.spawn.x;
         this.y = this.spawn.y;
         this.heading = this.spawnDirection;
@@ -94,5 +99,7 @@ export default class Car extends RenderedObject {
         this.v = 0;
         this.headingA = 0;
         this.headingV = 0;
+        this.dead = false;
+        this.timeAlive = 0;
     }
 }

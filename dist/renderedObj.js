@@ -16,6 +16,8 @@ class RenderedObject {
         this.headingA = 0;
         this.maxV = 0;
         this.maxHeadingV = 0;
+        this.hidden = false;
+        this.isHiding = false;
     }
     setHeadingV(v) {
         this.headingV = v;
@@ -47,25 +49,38 @@ class RenderedObject {
     setHeadingA(a) {
         this.headingA = a;
     }
+    wait() {
+        this.isHiding = true;
+    }
+    start() {
+        this.isHiding = false;
+    }
     move() {
+        if (this.isHiding)
+            return;
         this.x += this.v * Math.cos(this.heading - Math.PI / 2) * this.deltaTime;
         this.y += this.v * Math.sin(this.heading - Math.PI / 2) * this.deltaTime;
-        this.heading += this.headingV;
+        this.heading += this.headingV * this.deltaTime;
         this.v += this.a * this.deltaTime;
         this.headingV += this.headingA * this.deltaTime;
-        if (this.v >= this.maxV) {
-            this.v = this.maxV;
-        }
-        if (this.v < 0) {
-            this.v = 0;
+        if (Math.abs(this.v) >= this.maxV) {
+            this.v = Math.sign(this.v) * this.maxV;
         }
         if (Math.abs(this.headingV) >= this.maxHeadingV) {
             this.headingV = Math.sign(this.headingV) * this.maxHeadingV;
         }
     }
+    hide() {
+        this.hidden = true;
+    }
+    show() {
+        this.hidden = false;
+    }
     render() {
         if (this.color === "")
             throw new Error("no color given");
+        if (this.hidden)
+            return;
         this.ctx.save();
         this.ctx.translate(this.x, this.y);
         this.ctx.rotate(this.heading);

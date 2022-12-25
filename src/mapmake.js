@@ -121,7 +121,6 @@ function draw(points) {
         function recurse(lines, t) {
             if (lines.length === 1) {
                 const {x, y} = lerp(lines[0].p, lines[0].r, t);
-                document.title = '2';
                 ctx.lineTo(x, y);
                 return;
             }

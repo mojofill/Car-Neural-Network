@@ -4,34 +4,114 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const car_1 = __importDefault(require("../car"));
 const layer_1 = __importDefault(require("./layer"));
 const utils_1 = require("../utils");
 // start off simple - simply create a neural network that doesnt learn yet
 class AI {
-    constructor(path, car) {
+    constructor(path, car, ctx) {
+        // create the neural network
         this.path = path;
         this.car = car;
+        this.ctx = ctx;
         this.layerAmount = 4;
         this.layers = [];
-        this.neuronsInLayer = [5, 4, 3, 2];
-        this.timeAlive = 0;
+        this.neuronsInLayer = [13, 4, 3, 2];
         this.distanceCovered = 0;
-        // create the neural network
+        this.maxBinaryLength = 58;
         for (let i = 0; i < this.layerAmount; i++) {
-            // either null or the prev/next layer based on current layer index
-            const previousLayer = i === 0 ? null : this.layers[i - 1];
-            const nextLayer = i === this.layerAmount - 1 ? null : this.layers[i + 1];
             // create the next layer
-            const layer = new layer_1.default(this.neuronsInLayer[i], previousLayer, nextLayer);
-            // loop through all of current layer's neurons and connect them to prev/next layer
-            for (let w = 0; w < layer.neuronAmount; w++) {
-                const current_neuron = layer.get(w);
-                current_neuron.previousLayer = previousLayer;
-                current_neuron.nextLayer = nextLayer;
-            }
+            const layer = new layer_1.default(this.neuronsInLayer[i], i);
             this.layers.push(layer);
         }
         // hopefully this works!!
+        // create my DNA strand
+        // DNA strand include weights and biases
+        let str = '';
+        for (let i = 0; i < this.layerAmount; i++) {
+            for (let u = 0; u < this.neuronsInLayer[i]; u++) {
+                const neuron = this.layers[i].get(u);
+                const weight = (0, utils_1.toBinary)(neuron.weight);
+                const bias = (0, utils_1.toBinary)(neuron.bias);
+                for (const s of weight)
+                    if (s === '.')
+                        console.log('problem weight: ' + neuron.weight);
+                for (const s of bias)
+                    if (s === '.')
+                        console.log('problem bias: ' + neuron.bias);
+                str += (0, utils_1.toBinary)(neuron.weight) + (0, utils_1.toBinary)(neuron.bias);
+            }
+        }
+        this.DNA = str;
+    }
+    /** returns `n` amount of children AI in an `Array<AI>`*/
+    produceNChildren(ai, n) {
+        const arr = [];
+        const maxFitness = Math.max(this.getFitness(), ai.getFitness());
+        const mutateChance = (-1 / (1 + Math.pow(Math.E, -3 * maxFitness)) + 1) * 0.05;
+        const minSegment = 1;
+        const maxSegment = 13;
+        let dummy = ai;
+        let track = 0;
+        for (let i = 0; i < n; i++) {
+            // first create the DNA segment
+            // randomly cut up the DNA
+            const cutupDNA = [];
+            const car = new car_1.default(this.ctx, this.car.spawn, this.car.direction, this.path);
+            const newChildAI = new AI(this.path, car, this.ctx);
+            let k = 0;
+            while (true) {
+                let step = Math.floor(Math.random() * (maxSegment - minSegment + 1) + maxSegment);
+                if (k + step >= this.DNA.length)
+                    step = this.DNA.length - k - 1;
+                if (step === 0)
+                    break;
+                cutupDNA.push(dummy.DNA.slice(k, k + step));
+                if (track === 0)
+                    dummy = this;
+                else
+                    dummy = ai;
+                k += step;
+                track = Math.abs(track - 1);
+            }
+            let g = 0;
+            let DNA = cutupDNA.join('');
+            for (let i = 0; i < DNA.length; i++) {
+                if (Math.random() < mutateChance) {
+                    g++;
+                    const digit = parseInt(DNA.charAt(i));
+                    DNA = (0, utils_1.replaceAt)(DNA, i, '' + Math.abs(digit - 1));
+                }
+            }
+            console.log('mutated ' + g + ' genes');
+            let p = 0;
+            const newCutUpDNA = [];
+            for (const substr of cutupDNA) {
+                newCutUpDNA.push(DNA.slice(p, p + substr.length));
+                p += substr.length;
+            }
+            const newDNA = newCutUpDNA.join('');
+            // DNA goes weight, bias, weight, bias ...
+            // now we have a mutated DNA strand thats cut up and ready to be put back into a neural network
+            let neuronIndex = 0;
+            let layerIndex = 0;
+            for (let i = 0; i < newDNA.length / maxSegment; i++) {
+                const weightDNA = newDNA.slice(i * maxSegment, (i + 1) * maxSegment - 1);
+                const biasDNA = newDNA.slice((i + 1) * maxSegment, (i + 2) * maxSegment - 1);
+                i++;
+                newChildAI.layers[layerIndex].get(neuronIndex).weight = (0, utils_1.parseBinary)(weightDNA);
+                newChildAI.layers[layerIndex].get(neuronIndex).bias = (0, utils_1.parseBinary)(biasDNA);
+                if (neuronIndex === this.neuronsInLayer[layerIndex] - 1) { // maxed out all the neurons in this layer
+                    layerIndex++;
+                    neuronIndex = 0;
+                }
+                else {
+                    neuronIndex++;
+                }
+            }
+            arr.push(newChildAI);
+        }
+        return arr;
     }
     /**
      * returns the last layer - the output layer, which consists of two neurons: acceleration and turn velocity
@@ -45,38 +125,34 @@ class AI {
             const currLayer = this.layers[i];
             for (let k = 0; k < currLayer.neuronAmount; k++) {
                 const neuron = currLayer.get(k);
-                neuron.value = neuron.evaluate();
+                neuron.value = neuron.evaluate(this.layers);
+                if (neuron.value === 0) {
+                    console.log(this.layers);
+                    throw new Error();
+                }
             }
         }
         return this.layers[this.layerAmount - 1];
     }
     /** return a dummy neural network with the same coefficients and biases */
     copy() {
-        let ai = new AI(this.path, this.car);
+        let ai = new AI(this.path, this.car, this.ctx);
         // create the neural network
         for (let i = 0; i < this.layerAmount; i++) {
-            // either null or the prev/next layer based on current layer index
-            const previousLayer = i === 0 ? null : this.layers[i - 1];
-            const nextLayer = i === this.layerAmount - 1 ? null : this.layers[i + 1];
             // create the next layer
-            const layer = new layer_1.default(this.neuronsInLayer[i], previousLayer, nextLayer);
-            // loop through all of current layer's neurons and connect them to prev/next layer
-            for (let w = 0; w < layer.neuronAmount; w++) {
-                const current_neuron = layer.get(w);
-                current_neuron.previousLayer = previousLayer;
-                current_neuron.nextLayer = nextLayer;
-            }
+            const layer = new layer_1.default(this.neuronsInLayer[i], i);
             ai.layers.push(layer);
         }
         return ai;
     }
     translateOutput(a, heading_v) {
-        this.car.setA(a * 100);
-        // testing!! remove zero after
-        this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV * 0.1 * 0);
+        // testing!! remove psoitive and zero after
+        this.car.setA((2 * a - 1) * 500);
+        this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV);
     }
+    /** returns a value between [0, 1] */
     getFitness() {
-        return this.distanceCovered / this.timeAlive;
+        return this.distanceCovered;
     }
     updateDistanceTraveled() {
         const points = this.path.points;
@@ -111,7 +187,7 @@ class AI {
             for (let i = 0; i < points.length - 1; i++) {
                 lines.push(new utils_1.Line(points[i], points[i + 1]));
             }
-            const { x, y } = recurse(lines, t);
+            const { x, y } = recurse(lines, t); // point at t
             const d = Math.sqrt((x - car.x) ** 2 + (y - car.y) ** 2);
             if (d > utils_1.PATH_WIDTH) {
                 continue;
@@ -131,7 +207,7 @@ class AI {
 }
 exports.default = AI;
 
-},{"../utils":8,"./layer":2}],2:[function(require,module,exports){
+},{"../car":4,"../utils":8,"./layer":2}],2:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -139,11 +215,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const neuron_1 = __importDefault(require("./neuron"));
 class Layer {
-    constructor(neuronAmount, previousLayer, nextLayer) {
+    constructor(neuronAmount, layerIndex) {
         this.neuronAmount = neuronAmount;
+        this.layerIndex = layerIndex;
         this.neurons = [];
         for (let i = 0; i < neuronAmount; i++) {
-            this.neurons.push(new neuron_1.default(previousLayer, nextLayer));
+            this.neurons.push(new neuron_1.default(layerIndex));
         }
     }
     /** returns neuron at `k` */
@@ -161,23 +238,23 @@ exports.default = Layer;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sigmoid = void 0;
 function sigmoid(x) {
-    return 1 / (1 + Math.pow(Math.E, -x));
+    return 1 / (1 + Math.pow(Math.E, -(1 / 128) * x));
 }
 exports.sigmoid = sigmoid;
 class Neuron {
-    constructor(previousLayer, nextLayer) {
-        this.previousLayer = previousLayer;
-        this.nextLayer = nextLayer;
-        this.weight = Math.random() * 2 - 1;
-        this.bias = 0;
-        this.value = Math.random();
+    constructor(layerIndex) {
+        this.layerIndex = layerIndex;
+        this.weight = (Math.random() * 2 - 1);
+        this.bias = (Math.random() * 2 - 1);
+        this.value = 0;
     }
-    evaluate() {
+    evaluate(layers) {
         let sum = 0;
-        if (this.previousLayer === null)
+        if (this.layerIndex === 0)
             return this.value; // the input layer cant evaluate anything, just return initial value
-        for (let i = 0; i < this.previousLayer.neuronAmount; i++) {
-            sum += this.previousLayer.neurons[i].weight * this.value;
+        const previousLayer = layers[this.layerIndex - 1];
+        for (let i = 0; i < previousLayer.neuronAmount; i++) {
+            sum += previousLayer.get(i).weight * this.value;
         }
         sum += this.bias;
         return sigmoid(sum);
@@ -187,34 +264,11 @@ exports.default = Neuron;
 
 },{}],4:[function(require,module,exports){
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const path_1 = __importStar(require("./path"));
+const path_1 = require("./path");
 const renderedObj_1 = __importDefault(require("./renderedObj"));
 const utils_1 = require("./utils");
 /*
@@ -225,7 +279,7 @@ const color = "red";
 const width = 10;
 const height = 20;
 const maxV = 200;
-const maxHeadingV = 3.5;
+const maxHeadingV = 5;
 class Sensor {
     constructor(car, angle) {
         this.car = car;
@@ -257,32 +311,36 @@ class Sensor {
     }
 }
 class Car extends renderedObj_1.default {
-    constructor(ctx, spawn, direction) {
+    constructor(ctx, spawn, direction, path) {
         super(ctx);
         this.spawn = spawn;
-        this.path = new path_1.default([], { x: 0, y: 0 }, 0); // shitty code, but this is the only way
+        this.direction = direction;
+        this.path = path;
         this.spawnDirection = 0;
         this.sensors = [];
+        this.dead = false;
+        this.timeAlive = 0;
         this.spawnDirection = direction;
         this.setPose(spawn.x, spawn.y, direction);
         this.setDimensions(width, height);
         this.setColor(color);
         this.setMaxVelocity(maxV);
         this.setMaxHeadingVelocity(maxHeadingV);
-        for (let k = -Math.PI / 3; k <= Math.PI / 3; k += Math.PI / 6) {
+        for (let k = -Math.PI / 3; k <= Math.PI / 3; k += Math.PI / 12) {
             this.sensors.push(new Sensor(this, k));
         }
     }
-    setPath(path) {
-        this.path = path;
+    isDead() {
+        return this.collisionDetect() || this.dead;
+    }
+    die() {
+        this.dead = true;
     }
     collisionDetect() {
+        if (this.hidden || this.isHiding)
+            return false;
         // here is to check collisions and stuff
         const points = (0, utils_1.pixelate)(this);
-        this.ctx.fillStyle = this.color;
-        for (const p of points) {
-            this.ctx.fillRect(p.x, p.y, 1, 1);
-        }
         for (const p of points) {
             if (p.x >= 0 && p.x < this.path.map[0].length && p.y >= 0 && p.y < this.path.map.length) {
                 const pixel = this.path.map[p.y][p.x];
@@ -294,6 +352,8 @@ class Car extends renderedObj_1.default {
         return false;
     }
     respawn() {
+        this.isHiding = false;
+        this.hidden = false;
         this.x = this.spawn.x;
         this.y = this.spawn.y;
         this.heading = this.spawnDirection;
@@ -301,6 +361,8 @@ class Car extends renderedObj_1.default {
         this.v = 0;
         this.headingA = 0;
         this.headingV = 0;
+        this.dead = false;
+        this.timeAlive = 0;
     }
 }
 exports.default = Car;
@@ -326,6 +388,7 @@ canvas.style.width = '' + canvas.width;
 canvas.style.height = '' + canvas.height;
 canvas.style.position = 'fixed';
 canvas.style.margin = canvas.style.left = canvas.style.top = '0px';
+let speed = 40;
 const time = {
     curr: Date.now() / 1000,
     past: Date.now() / 1000,
@@ -334,27 +397,28 @@ const time = {
         this.curr = Date.now() / 1000;
     },
     get deltaTime() {
-        return this.curr - this.past;
+        return (this.curr - this.past) > 0.5 ? 0 : this.curr - this.past;
     }
+};
+const bestDistance = {
+    x: 0,
+    y: 0
+};
+const secondBestDistance = {
+    x: 0,
+    y: 0
 };
 let path; // use later for pixel detection stuff
 const image = new Image();
 image.onload = () => ctx.drawImage(image, 0, 0);
 image.src = '../src/pathImage.png';
+let generation = 0;
 // todo, build a whole lotta cars
-const AIs = [];
-const AIAmount = 1;
+let AIs = [];
+const AIAmount = 50;
 let deadAIAmount = 0;
-let sortedAIs = []; // ass name, basically sorts the AI's from the worst to best
-const keys = {
-    forward: false,
-    back: false,
-    left: false,
-    right: false
-};
 const init = () => {
-    //manualControls();
-    requestAnimationFrame(loop);
+    loop();
 };
 const reset = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -365,11 +429,25 @@ const loop = () => {
     time.updateTime();
     reset();
     path.draw(ctx, image);
+    if (bestDistance.x !== 0) {
+        ctx.fillStyle = 'green';
+        ctx.fillRect(bestDistance.x - 3, bestDistance.y - 3, 6, 6);
+        ctx.fillStyle = 'blue';
+        ctx.fillRect(secondBestDistance.x - 3, secondBestDistance.y - 3, 6, 6);
+    }
+    for (let i = 0; i < speed; i++)
+        evaluateAI(i);
+    requestAnimationFrame(loop);
+};
+const evaluateAI = (i) => {
     for (const ai of AIs) {
         const car = ai.car;
         car.setDeltaTime(time.deltaTime);
         car.move();
-        car.render();
+        if (i === 0)
+            car.render();
+        const inputLayer = ai.layers[0];
+        // first 5 of input
         for (let i = 0; i < car.sensors.length; i++) {
             const sensor = car.sensors[i];
             const { x, y } = sensor.sense();
@@ -378,23 +456,76 @@ const loop = () => {
             const inputLayer = ai.layers[0];
             inputLayer.set(i, distance);
         }
+        // last 3 are acceleration, velocity, turn velocity
+        inputLayer.set(10, ai.car.a);
+        inputLayer.set(11, ai.car.v);
+        inputLayer.set(12, ai.car.headingV);
         const data = ai.evaluate();
         const a = data.get(0).value;
         const heading_v = data.get(1).value;
         ai.translateOutput(a, heading_v);
+        // console.log(a);
         // record how far along the cars have gone, the two cars that went the farthest produce the new batch of cars, where the children plus to two cars equal the AIAmount
-        if (car.collisionDetect()) {
+        if (car.isDead()) {
             // i need a fitness function
             // update distance covered first, then i can get fitness with distance/time
             ai.updateDistanceTraveled();
-            // put the player back in the beginning
-            car.respawn();
+            deadAIAmount++;
+            ai.car.wait();
+            ai.car.hide();
+            if (deadAIAmount === AIAmount) {
+                // pick the two best AI's based on distance traveled
+                let bestAI = AIs[0];
+                let farthestDistance = bestAI.distanceCovered;
+                let _i = 0;
+                for (let i = 0; i < AIAmount; i++) {
+                    const ai = AIs[i];
+                    if (ai.distanceCovered > farthestDistance) {
+                        bestAI = ai;
+                        farthestDistance = ai.distanceCovered;
+                        _i = i;
+                    }
+                }
+                const AICopy = [...AIs];
+                AICopy.splice(_i, 1);
+                // do the same thing for second best AI
+                let secondBestAI = AICopy[0];
+                farthestDistance = secondBestAI.distanceCovered;
+                for (let i = 0; i < AICopy.length; i++) {
+                    const ai = AICopy[i];
+                    if (ai.distanceCovered > farthestDistance) {
+                        secondBestAI = ai;
+                        farthestDistance = ai.distanceCovered;
+                    }
+                }
+                bestDistance.x = bestAI.car.x;
+                bestDistance.y = bestAI.car.y;
+                secondBestDistance.x = secondBestAI.car.x;
+                secondBestDistance.y = secondBestAI.car.y;
+                const arr = bestAI.produceNChildren(secondBestAI, AIs.length - 2);
+                AIs = [];
+                AIs.push(bestAI, secondBestAI);
+                for (const ai of arr) {
+                    AIs.push(ai);
+                }
+                for (const ai of AIs) {
+                    ai.car.respawn();
+                    ai.distanceCovered = 0;
+                }
+                bestAI.car.color = 'green';
+                secondBestAI.car.color = 'blue';
+                deadAIAmount = 0;
+                generation++;
+                document.title = 'generation ' + generation;
+            }
         }
         else {
-            ai.timeAlive += time.deltaTime;
+            ai.car.timeAlive += time.deltaTime;
+            if (ai.car.timeAlive >= 120) {
+                ai.car.die();
+            }
         }
     }
-    requestAnimationFrame(loop);
 };
 window.onload = () => {
     fetch('../data/points.json')
@@ -425,8 +556,7 @@ window.onload = () => {
             else {
                 path.map = mapJson.data;
                 for (let i = 0; i < AIAmount; i++) {
-                    const ai = new ai_1.default(path, new car_1.default(ctx, json.spawn, json.direction + Math.PI / 2));
-                    ai.car.setPath(path);
+                    const ai = new ai_1.default(path, new car_1.default(ctx, json.spawn, json.direction + Math.PI / 2, path), ctx);
                     AIs.push(ai);
                 }
                 _init();
@@ -566,6 +696,8 @@ class RenderedObject {
         this.headingA = 0;
         this.maxV = 0;
         this.maxHeadingV = 0;
+        this.hidden = false;
+        this.isHiding = false;
     }
     setHeadingV(v) {
         this.headingV = v;
@@ -597,25 +729,38 @@ class RenderedObject {
     setHeadingA(a) {
         this.headingA = a;
     }
+    wait() {
+        this.isHiding = true;
+    }
+    start() {
+        this.isHiding = false;
+    }
     move() {
+        if (this.isHiding)
+            return;
         this.x += this.v * Math.cos(this.heading - Math.PI / 2) * this.deltaTime;
         this.y += this.v * Math.sin(this.heading - Math.PI / 2) * this.deltaTime;
-        this.heading += this.headingV;
+        this.heading += this.headingV * this.deltaTime;
         this.v += this.a * this.deltaTime;
         this.headingV += this.headingA * this.deltaTime;
-        if (this.v >= this.maxV) {
-            this.v = this.maxV;
-        }
-        if (this.v < 0) {
-            this.v = 0;
+        if (Math.abs(this.v) >= this.maxV) {
+            this.v = Math.sign(this.v) * this.maxV;
         }
         if (Math.abs(this.headingV) >= this.maxHeadingV) {
             this.headingV = Math.sign(this.headingV) * this.maxHeadingV;
         }
     }
+    hide() {
+        this.hidden = true;
+    }
+    show() {
+        this.hidden = false;
+    }
     render() {
         if (this.color === "")
             throw new Error("no color given");
+        if (this.hidden)
+            return;
         this.ctx.save();
         this.ctx.translate(this.x, this.y);
         this.ctx.rotate(this.heading);
@@ -630,9 +775,42 @@ exports.default = RenderedObject;
 },{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.round = exports.pixelate = exports.lerp = exports.Line = exports.PATH_WIDTH = exports.UNIT_WIDTH = void 0;
+exports.round = exports.pixelate = exports.lerp = exports.Line = exports.padZeros = exports.parseBinary = exports.toBinary = exports.replaceAt = exports.PATH_WIDTH = exports.UNIT_WIDTH = void 0;
 exports.UNIT_WIDTH = 1;
 exports.PATH_WIDTH = 50;
+function replaceAt(s, index, replacement) {
+    return s.substring(0, index) + replacement + s.substring(index + replacement.length);
+}
+exports.replaceAt = replaceAt;
+// the follow code is courtesy of Jason Yang, 284
+const POWER_MAX = 2; // 2^2 - 1 -> 3
+const SIG_MAX = 10; // 2^10 - 1
+function toBinary(n) {
+    let str = Math.abs(n).toString();
+    if (str[0] === '0' && str[1] === '.')
+        str = str.slice(1);
+    const roundTo = Math.min(2 ** POWER_MAX - 1, str.replace('.', '').length);
+    const power = roundTo - (str.indexOf('.') === -1 ? roundTo : str.indexOf('.'));
+    if (power < 0)
+        throw new Error(`Number, ${n}, has too many sigfigs to convert`);
+    const rounded = Math.round(Math.abs(n) * 10 ** power) / 10 ** power; // round the number to the correct decimal places
+    const mantissa = Math.round(rounded * 10 ** power); // get the number without any decimals
+    return ((Math.sign(n) > 0 ? '0' : '1') +
+        padZeros(power.toString(2), POWER_MAX) +
+        padZeros(mantissa.toString(2), SIG_MAX));
+}
+exports.toBinary = toBinary;
+function parseBinary(n) {
+    const sign = n[0] === '1' ? -1 : 1;
+    const power = parseInt(n.slice(1, POWER_MAX + 1), 2);
+    const data = parseInt(n.slice(POWER_MAX + 1), 2);
+    return sign * data * 10 ** -power;
+}
+exports.parseBinary = parseBinary;
+function padZeros(binary, length) {
+    return '0'.repeat(length - binary.length) + binary;
+}
+exports.padZeros = padZeros;
 class Line {
     constructor(p, r) {
         this.p = p;

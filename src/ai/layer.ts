@@ -3,9 +3,9 @@ import Neuron from "./neuron";
 export default class Layer {
     public neurons: Array<Neuron> = [];
 
-    constructor(public neuronAmount: number, previousLayer: Layer | null, nextLayer: Layer | null) {
+    constructor(public neuronAmount: number, public layerIndex: number) {
         for (let i = 0; i < neuronAmount; i++) {
-            this.neurons.push(new Neuron(previousLayer, nextLayer));
+            this.neurons.push(new Neuron(layerIndex));
         }
     }
 
