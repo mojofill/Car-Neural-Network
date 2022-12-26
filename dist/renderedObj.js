@@ -10,7 +10,7 @@ class RenderedObject {
         this.heading = 0;
         this.width = 0;
         this.height = 0;
-        this.v = 0;
+        this.v = 100;
         this.headingV = 0;
         this.a = 0;
         this.headingA = 0;

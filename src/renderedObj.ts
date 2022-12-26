@@ -10,7 +10,7 @@ export default abstract class RenderedObject {
     public width: number = 0;
     public height: number = 0;
     
-    public v: number = 0;
+    public v: number = 100;
     public headingV: number = 0;
 
     public a: number = 0;

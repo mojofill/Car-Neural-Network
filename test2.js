@@ -26,5 +26,19 @@ function parseBinary(n) {
 function padZeros(binary, length) {
     return '0'.repeat(length - binary.length) + binary;
 }
+let size = 100;
+let check = 1;
+let c = 0;
+for (let j = 0; j < size; j++) {
+    let s = '';
+    for (let i = 0; i < 13; i++) {
+        s += Math.floor(Math.random() * 2);
+    }
+    const n = parseBinary(s);
+    if (Math.abs(n) <= check) {
+        c++;
+    }
+    console.log(n);
+}
 
-console.log(parseBinary("101000000000"));
+console.log((100 * c/size) + '% were below ' + check);

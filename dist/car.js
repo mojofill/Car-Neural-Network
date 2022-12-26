@@ -13,8 +13,8 @@ build a simple control system
 const color = "red";
 const width = 10;
 const height = 20;
-const maxV = 200;
-const maxHeadingV = 5;
+const maxV = 150;
+const maxHeadingV = 8;
 class Sensor {
     constructor(car, angle) {
         this.car = car;
@@ -61,7 +61,7 @@ class Car extends renderedObj_1.default {
         this.setColor(color);
         this.setMaxVelocity(maxV);
         this.setMaxHeadingVelocity(maxHeadingV);
-        for (let k = -Math.PI / 3; k <= Math.PI / 3; k += Math.PI / 12) {
+        for (let k = -Math.PI / 2; k <= Math.PI / 2; k += Math.PI / 4) {
             this.sensors.push(new Sensor(this, k));
         }
     }
@@ -72,7 +72,7 @@ class Car extends renderedObj_1.default {
         this.dead = true;
     }
     collisionDetect() {
-        if (this.hidden || this.isHiding)
+        if (this.hidden || this.isHiding || this.dead)
             return false;
         // here is to check collisions and stuff
         const points = (0, utils_1.pixelate)(this);
@@ -93,7 +93,7 @@ class Car extends renderedObj_1.default {
         this.y = this.spawn.y;
         this.heading = this.spawnDirection;
         this.a = 0;
-        this.v = 0;
+        this.v = 100;
         this.headingA = 0;
         this.headingV = 0;
         this.dead = false;
