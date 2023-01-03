@@ -16,55 +16,100 @@ class AI {
         this.ctx = ctx;
         this.layerAmount = 4;
         this.layers = [];
-        this.neuronsInLayer = [8, 4, 3, 2];
+        this.neuronsInLayer = [13, 4, 3, 2];
         this.distanceCovered = 0;
-        this.mutateMaxStep = 500;
+        this.maxBinaryLength = 58;
         for (let i = 0; i < this.layerAmount; i++) {
             // create the next layer
             const layer = new layer_1.default(this.neuronsInLayer[i], i);
             this.layers.push(layer);
         }
-    }
-    getRandomRange(min, max) {
-        return Math.random() * (max - min) + min;
-    }
-    getRandomSign() {
-        return Math.random() > 0.5 ? 1 : -1;
+        // hopefully this works!!
+        // create my DNA strand
+        // DNA strand include weights and biases
+        let str = '';
+        for (let i = 0; i < this.layerAmount; i++) {
+            for (let u = 0; u < this.neuronsInLayer[i]; u++) {
+                const neuron = this.layers[i].get(u);
+                const weight = (0, utils_1.toBinary)(neuron.weight);
+                const bias = (0, utils_1.toBinary)(neuron.bias);
+                for (const s of weight)
+                    if (s === '.')
+                        console.log('problem weight: ' + neuron.weight);
+                for (const s of bias)
+                    if (s === '.')
+                        console.log('problem bias: ' + neuron.bias);
+                str += (0, utils_1.toBinary)(neuron.weight) + (0, utils_1.toBinary)(neuron.bias);
+            }
+        }
+        this.DNA = str;
     }
     /** returns `n` amount of children AI in an `Array<AI>`*/
     produceNChildren(ai, n) {
         const arr = [];
         const maxFitness = Math.max(this.getFitness(), ai.getFitness());
-        const mutateChance = (1 - maxFitness) * 0.25 + 0.15;
+        const mutateChance = (-1 / (1 + Math.pow(Math.E, -3 * maxFitness)) + 1) * 0.05;
+        const minSegment = 1;
+        const maxSegment = 13;
+        let dummy = ai;
+        let track = 0;
         for (let i = 0; i < n; i++) {
-            const car = new car_1.default(this.ctx, this.car.spawn, this.car.spawnDirection, this.path);
-            const child = new AI(this.path, car, this.ctx);
-            // first grab random weights and biases from each parent
-            // grab ~50% of each parent's weight and bias
-            for (let i = 0; i < this.layerAmount; i++) {
-                for (let j = 0; j < this.neuronsInLayer[i]; j++) {
-                    // randomly grab either this or ai's weight and bias, 50/50 chance
-                    // mutate based on mutateChance
-                    // either completely rewrite, or change slightly
-                    // try changing slightly first
-                    // if mutate, then randomly change by [-max, max] step
-                    const mutate = Math.random() < mutateChance;
-                    // weight
-                    const parentOfWeight = Math.random() < 0.5 ? this : ai;
-                    let weight = parentOfWeight.layers[i].get(j).weight;
-                    if (mutate)
-                        weight += this.getRandomSign() * this.getRandomRange(0.75, 1) * this.mutateMaxStep;
-                    // bias
-                    const parentOfBias = Math.random() < 0.5 ? this : ai;
-                    let bias = parentOfBias.layers[i].get(j).bias;
-                    if (mutate)
-                        bias += this.getRandomSign() * this.getRandomRange(0.75, 1) * this.mutateMaxStep;
-                    // set the randomly selected weights and biases for this one neuron
-                    child.layers[i].get(j).weight = weight;
-                    child.layers[i].get(j).bias = bias;
+            // first create the DNA segment
+            // randomly cut up the DNA
+            const cutupDNA = [];
+            const car = new car_1.default(this.ctx, this.car.spawn, this.car.direction, this.path);
+            const newChildAI = new AI(this.path, car, this.ctx);
+            let k = 0;
+            while (true) {
+                let step = Math.floor(Math.random() * (maxSegment - minSegment + 1) + maxSegment);
+                if (k + step >= this.DNA.length)
+                    step = this.DNA.length - k - 1;
+                if (step === 0)
+                    break;
+                cutupDNA.push(dummy.DNA.slice(k, k + step));
+                if (track === 0)
+                    dummy = this;
+                else
+                    dummy = ai;
+                k += step;
+                track = Math.abs(track - 1);
+            }
+            let g = 0;
+            let DNA = cutupDNA.join('');
+            for (let i = 0; i < DNA.length; i++) {
+                if (Math.random() < mutateChance) {
+                    g++;
+                    const digit = parseInt(DNA.charAt(i));
+                    DNA = (0, utils_1.replaceAt)(DNA, i, '' + Math.abs(digit - 1));
                 }
             }
-            arr.push(child);
+            console.log('mutated ' + g + ' genes');
+            let p = 0;
+            const newCutUpDNA = [];
+            for (const substr of cutupDNA) {
+                newCutUpDNA.push(DNA.slice(p, p + substr.length));
+                p += substr.length;
+            }
+            const newDNA = newCutUpDNA.join('');
+            // DNA goes weight, bias, weight, bias ...
+            // now we have a mutated DNA strand thats cut up and ready to be put back into a neural network
+            let neuronIndex = 0;
+            let layerIndex = 0;
+            for (let i = 0; i < newDNA.length / maxSegment; i++) {
+                const weightDNA = newDNA.slice(i * maxSegment, (i + 1) * maxSegment - 1);
+                const biasDNA = newDNA.slice((i + 1) * maxSegment, (i + 2) * maxSegment - 1);
+                i++;
+                newChildAI.layers[layerIndex].get(neuronIndex).weight = (0, utils_1.parseBinary)(weightDNA);
+                newChildAI.layers[layerIndex].get(neuronIndex).bias = (0, utils_1.parseBinary)(biasDNA);
+                if (neuronIndex === this.neuronsInLayer[layerIndex] - 1) { // maxed out all the neurons in this layer
+                    layerIndex++;
+                    neuronIndex = 0;
+                }
+                else {
+                    neuronIndex++;
+                }
+            }
+            arr.push(newChildAI);
         }
         return arr;
     }
@@ -80,11 +125,11 @@ class AI {
             const currLayer = this.layers[i];
             for (let k = 0; k < currLayer.neuronAmount; k++) {
                 const neuron = currLayer.get(k);
-                neuron.value = neuron.activate(this.layers); // activate each neuron
-                // if (neuron.value === 0) {
-                //     console.log(this.layers);
-                //     throw new Error();
-                // }
+                neuron.value = neuron.evaluate(this.layers);
+                if (neuron.value === 0) {
+                    console.log(this.layers);
+                    throw new Error();
+                }
             }
         }
         return this.layers[this.layerAmount - 1];
@@ -107,7 +152,7 @@ class AI {
     }
     /** returns a value between [0, 1] */
     getFitness() {
-        return (this.distanceCovered ** 2) / this.car.timeAlive;
+        return this.distanceCovered;
     }
     updateDistanceTraveled() {
         const points = this.path.points;
@@ -193,7 +238,7 @@ exports.default = Layer;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sigmoid = void 0;
 function sigmoid(x) {
-    return 1 / (1 + Math.pow(Math.E, -x));
+    return 1 / (1 + Math.pow(Math.E, -(1 / 128) * x));
 }
 exports.sigmoid = sigmoid;
 class Neuron {
@@ -203,14 +248,13 @@ class Neuron {
         this.bias = (Math.random() * 2 - 1);
         this.value = 0;
     }
-    activate(layers) {
+    evaluate(layers) {
+        let sum = 0;
         if (this.layerIndex === 0)
             return this.value; // the input layer cant evaluate anything, just return initial value
-        let sum = 0;
         const previousLayer = layers[this.layerIndex - 1];
         for (let i = 0; i < previousLayer.neuronAmount; i++) {
-            const neuron = previousLayer.get(i);
-            sum += neuron.weight * neuron.value;
+            sum += previousLayer.get(i).weight * this.value;
         }
         sum += this.bias;
         return sigmoid(sum);
@@ -232,10 +276,17 @@ todo:
 build a simple control system
 */
 const color = "red";
+<<<<<<< HEAD
 const width = 5;
 const height = 10;
 const maxV = 75;
 const maxHeadingV = 8;
+=======
+const width = 10;
+const height = 20;
+const maxV = 200;
+const maxHeadingV = 5;
+>>>>>>> parent of 84cefab (we have ourselves a working neural network!)
 class Sensor {
     constructor(car, angle) {
         this.car = car;
@@ -282,7 +333,7 @@ class Car extends renderedObj_1.default {
         this.setColor(color);
         this.setMaxVelocity(maxV);
         this.setMaxHeadingVelocity(maxHeadingV);
-        for (let k = -Math.PI / 2; k <= Math.PI / 2; k += Math.PI / 4) {
+        for (let k = -Math.PI / 3; k <= Math.PI / 3; k += Math.PI / 12) {
             this.sensors.push(new Sensor(this, k));
         }
     }
@@ -293,7 +344,7 @@ class Car extends renderedObj_1.default {
         this.dead = true;
     }
     collisionDetect() {
-        if (this.hidden || this.isHiding || this.dead)
+        if (this.hidden || this.isHiding)
             return false;
         // here is to check collisions and stuff
         const points = (0, utils_1.pixelate)(this);
@@ -314,7 +365,7 @@ class Car extends renderedObj_1.default {
         this.y = this.spawn.y;
         this.heading = this.spawnDirection;
         this.a = 0;
-        this.v = 100;
+        this.v = 0;
         this.headingA = 0;
         this.headingV = 0;
         this.dead = false;
@@ -344,7 +395,7 @@ canvas.style.width = '' + canvas.width;
 canvas.style.height = '' + canvas.height;
 canvas.style.position = 'fixed';
 canvas.style.margin = canvas.style.left = canvas.style.top = '0px';
-const speed = 1;
+let speed = 40;
 const time = {
     curr: Date.now() / 1000,
     past: Date.now() / 1000,
@@ -353,30 +404,25 @@ const time = {
         this.curr = Date.now() / 1000;
     },
     get deltaTime() {
-        return (this.curr - this.past) > 0.03 ? 0 : this.curr - this.past;
+        return (this.curr - this.past) > 0.5 ? 0 : this.curr - this.past;
     }
 };
 const bestDistance = {
     x: 0,
-    y: 0,
-    t: 0
+    y: 0
 };
 const secondBestDistance = {
     x: 0,
-    y: 0,
-    t: 0
+    y: 0
 };
 let path; // use later for pixel detection stuff
 const image = new Image();
 image.onload = () => ctx.drawImage(image, 0, 0);
 image.src = '../src/pathImage.png';
 let generation = 0;
-let bestAI;
-let secondBestAI;
 // todo, build a whole lotta cars
 let AIs = [];
-const AIAmount = 200;
-// fuck it bro we just gonna randomly change the best AI's data
+const AIAmount = 50;
 let deadAIAmount = 0;
 const init = () => {
     loop();
@@ -396,28 +442,17 @@ const loop = () => {
         ctx.fillStyle = 'blue';
         ctx.fillRect(secondBestDistance.x - 3, secondBestDistance.y - 3, 6, 6);
     }
-    for (let i = 0; i < speed; i++) {
+    for (let i = 0; i < speed; i++)
         evaluateAI(i);
-        nextGen();
-    }
     requestAnimationFrame(loop);
 };
 const evaluateAI = (i) => {
     for (const ai of AIs) {
-        if (ai.car.hidden || ai.car.isHiding)
-            continue;
         const car = ai.car;
         car.setDeltaTime(time.deltaTime);
         car.move();
-        if (i === 0) {
-            if (car.color === 'red') {
-                car.render();
-            }
-            if (car.color === 'green')
-                bestAI = ai;
-            if (car.color === 'blue')
-                secondBestAI = ai;
-        }
+        if (i === 0)
+            car.render();
         const inputLayer = ai.layers[0];
         // first 5 of input
         for (let i = 0; i < car.sensors.length; i++) {
@@ -426,18 +461,17 @@ const evaluateAI = (i) => {
             // put the distance of each inside the neural network input layer - in this order
             const distance = Math.sqrt((x - car.x) ** 2 + (y - car.y) ** 2);
             const inputLayer = ai.layers[0];
-            // ctx.fillStyle = 'green';
-            // ctx.fillRect(x-3, y-3, 6, 6);
             inputLayer.set(i, distance);
         }
         // last 3 are acceleration, velocity, turn velocity
-        inputLayer.set(car.sensors.length, ai.car.a);
-        inputLayer.set(car.sensors.length + 1, ai.car.v);
-        inputLayer.set(car.sensors.length + 2, ai.car.headingV);
+        inputLayer.set(10, ai.car.a);
+        inputLayer.set(11, ai.car.v);
+        inputLayer.set(12, ai.car.headingV);
         const data = ai.evaluate();
         const a = data.get(0).value;
         const heading_v = data.get(1).value;
         ai.translateOutput(a, heading_v);
+        // console.log(a);
         // record how far along the cars have gone, the two cars that went the farthest produce the new batch of cars, where the children plus to two cars equal the AIAmount
         if (car.isDead()) {
             // i need a fitness function
@@ -446,108 +480,62 @@ const evaluateAI = (i) => {
             deadAIAmount++;
             ai.car.wait();
             ai.car.hide();
+            if (deadAIAmount === AIAmount) {
+                // pick the two best AI's based on distance traveled
+                let bestAI = AIs[0];
+                let farthestDistance = bestAI.distanceCovered;
+                let _i = 0;
+                for (let i = 0; i < AIAmount; i++) {
+                    const ai = AIs[i];
+                    if (ai.distanceCovered > farthestDistance) {
+                        bestAI = ai;
+                        farthestDistance = ai.distanceCovered;
+                        _i = i;
+                    }
+                }
+                const AICopy = [...AIs];
+                AICopy.splice(_i, 1);
+                // do the same thing for second best AI
+                let secondBestAI = AICopy[0];
+                farthestDistance = secondBestAI.distanceCovered;
+                for (let i = 0; i < AICopy.length; i++) {
+                    const ai = AICopy[i];
+                    if (ai.distanceCovered > farthestDistance) {
+                        secondBestAI = ai;
+                        farthestDistance = ai.distanceCovered;
+                    }
+                }
+                bestDistance.x = bestAI.car.x;
+                bestDistance.y = bestAI.car.y;
+                secondBestDistance.x = secondBestAI.car.x;
+                secondBestDistance.y = secondBestAI.car.y;
+                const arr = bestAI.produceNChildren(secondBestAI, AIs.length - 2);
+                AIs = [];
+                AIs.push(bestAI, secondBestAI);
+                for (const ai of arr) {
+                    AIs.push(ai);
+                }
+                for (const ai of AIs) {
+                    ai.car.respawn();
+                    ai.distanceCovered = 0;
+                }
+                bestAI.car.color = 'green';
+                secondBestAI.car.color = 'blue';
+                deadAIAmount = 0;
+                generation++;
+                document.title = 'generation ' + generation;
+            }
         }
         else {
             ai.car.timeAlive += time.deltaTime;
+<<<<<<< HEAD
             if (ai.car.timeAlive >= 60) {
+=======
+            if (ai.car.timeAlive >= 120) {
+>>>>>>> parent of 84cefab (we have ourselves a working neural network!)
                 ai.car.die();
             }
         }
-    }
-    if (secondBestAI !== undefined)
-        secondBestAI.car.render();
-    if (bestAI !== undefined)
-        bestAI.car.render();
-};
-const nextGen = () => {
-    if (deadAIAmount === AIAmount) {
-        // pick the two best AI's based on distance traveled
-        let bestAICurrGen = AIs[0];
-        let farthestDistance = bestAICurrGen.distanceCovered;
-        let _i = 0;
-        for (let i = 0; i < AIAmount; i++) {
-            const ai = AIs[i];
-            if (ai.distanceCovered > farthestDistance) {
-                bestAICurrGen = ai;
-                farthestDistance = ai.distanceCovered;
-                _i = i;
-            }
-        }
-        const AICopy = [...AIs];
-        AICopy.splice(_i, 1);
-        // do the same thing for second best AI
-        let secondBestAICurrGen = AICopy[0];
-        farthestDistance = secondBestAICurrGen.distanceCovered;
-        for (let i = 0; i < AICopy.length; i++) {
-            const ai = AICopy[i];
-            if (ai.distanceCovered > farthestDistance) {
-                secondBestAICurrGen = ai;
-                farthestDistance = ai.distanceCovered;
-            }
-        }
-        bestDistance.x = bestAICurrGen.car.x;
-        bestDistance.y = bestAICurrGen.car.y;
-        bestDistance.t = bestAICurrGen.distanceCovered;
-        secondBestDistance.x = secondBestAICurrGen.car.x;
-        secondBestDistance.y = secondBestAICurrGen.car.y;
-        secondBestDistance.t = secondBestAICurrGen.distanceCovered;
-        let fitnessSum = 0;
-        // calculate the sum of fitnesses
-        for (const ai of AIs) {
-            fitnessSum += ai.getFitness();
-        }
-        let target = Math.random() * fitnessSum;
-        let runningSum = 0;
-        let selectedParent1;
-        for (let i = 0; i < AIs.length; i++) {
-            runningSum += AIs[i].getFitness();
-            if (runningSum > target) {
-                selectedParent1 = AIs[i];
-                break;
-            }
-        }
-        if (selectedParent1 === undefined)
-            throw new Error();
-        // get the second parent
-        let fitnessSum2 = 0;
-        // calculate the sum of fitnesses
-        for (const ai of AIs) {
-            if (ai.getFitness() === selectedParent1.getFitness())
-                continue;
-            fitnessSum2 += ai.getFitness();
-        }
-        let target2 = Math.random() * fitnessSum2;
-        let runningSum2 = 0;
-        let selectedParent2;
-        for (let i = 0; i < AIs.length; i++) {
-            if (AIs[i] === selectedParent1)
-                continue;
-            runningSum2 += AIs[i].getFitness();
-            if (runningSum2 > target2) {
-                selectedParent2 = AIs[i];
-                break;
-            }
-        }
-        if (selectedParent2 === undefined)
-            throw new Error();
-        const arr = selectedParent1.produceNChildren(selectedParent2, AIs.length - 2);
-        AIs = [];
-        AIs.push(bestAICurrGen, secondBestAICurrGen);
-        for (const ai of arr) {
-            AIs.push(ai);
-        }
-        for (const ai of AIs) {
-            ai.car.respawn();
-            ai.distanceCovered = 0;
-        }
-        bestAI = bestAICurrGen;
-        secondBestAI = secondBestAICurrGen;
-        bestAI.car.color = 'green';
-        secondBestAI.car.color = 'blue';
-        deadAIAmount = 0;
-        generation++;
-        // document.title = 'gen ' + generation;
-        console.log('gen ' + generation);
     }
 };
 window.onload = () => {
@@ -713,7 +701,7 @@ class RenderedObject {
         this.heading = 0;
         this.width = 0;
         this.height = 0;
-        this.v = 100;
+        this.v = 0;
         this.headingV = 0;
         this.a = 0;
         this.headingA = 0;

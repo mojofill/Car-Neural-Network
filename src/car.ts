@@ -13,8 +13,8 @@ const color = "red";
 const width = 5;
 const height = 10;
 
-const maxV = 75;
-const maxHeadingV: number = 8;
+const maxV = 200;
+const maxHeadingV: number = 5;
 
 class Sensor {
     constructor(private car: Car, public angle: number) {}
@@ -60,7 +60,7 @@ export default class Car extends RenderedObject {
         this.setMaxVelocity(maxV);
         this.setMaxHeadingVelocity(maxHeadingV);
 
-        for (let k = -Math.PI / 2; k <= Math.PI / 2; k += Math.PI / 4) {
+        for (let k = -Math.PI / 3; k <= Math.PI / 3; k += Math.PI / 12) {
             this.sensors.push(new Sensor(this, k));
         }
     }
@@ -74,7 +74,7 @@ export default class Car extends RenderedObject {
     }
 
     public collisionDetect(): boolean {
-        if (this.hidden || this.isHiding || this.dead) return false;
+        if (this.hidden || this.isHiding) return false;
 
         // here is to check collisions and stuff
         const points = pixelate(this);
@@ -96,7 +96,7 @@ export default class Car extends RenderedObject {
         this.y = this.spawn.y;
         this.heading = this.spawnDirection;
         this.a = 0;
-        this.v = 100;
+        this.v = 0;
         this.headingA = 0;
         this.headingV = 0;
         this.dead = false;

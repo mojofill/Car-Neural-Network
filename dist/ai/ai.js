@@ -15,55 +15,100 @@ class AI {
         this.ctx = ctx;
         this.layerAmount = 4;
         this.layers = [];
-        this.neuronsInLayer = [8, 4, 3, 2];
+        this.neuronsInLayer = [13, 4, 3, 2];
         this.distanceCovered = 0;
-        this.mutateMaxStep = 500;
+        this.maxBinaryLength = 58;
         for (let i = 0; i < this.layerAmount; i++) {
             // create the next layer
             const layer = new layer_1.default(this.neuronsInLayer[i], i);
             this.layers.push(layer);
         }
-    }
-    getRandomRange(min, max) {
-        return Math.random() * (max - min) + min;
-    }
-    getRandomSign() {
-        return Math.random() > 0.5 ? 1 : -1;
+        // hopefully this works!!
+        // create my DNA strand
+        // DNA strand include weights and biases
+        let str = '';
+        for (let i = 0; i < this.layerAmount; i++) {
+            for (let u = 0; u < this.neuronsInLayer[i]; u++) {
+                const neuron = this.layers[i].get(u);
+                const weight = (0, utils_1.toBinary)(neuron.weight);
+                const bias = (0, utils_1.toBinary)(neuron.bias);
+                for (const s of weight)
+                    if (s === '.')
+                        console.log('problem weight: ' + neuron.weight);
+                for (const s of bias)
+                    if (s === '.')
+                        console.log('problem bias: ' + neuron.bias);
+                str += (0, utils_1.toBinary)(neuron.weight) + (0, utils_1.toBinary)(neuron.bias);
+            }
+        }
+        this.DNA = str;
     }
     /** returns `n` amount of children AI in an `Array<AI>`*/
     produceNChildren(ai, n) {
         const arr = [];
         const maxFitness = Math.max(this.getFitness(), ai.getFitness());
-        const mutateChance = (1 - maxFitness) * 0.25 + 0.15;
+        const mutateChance = (-1 / (1 + Math.pow(Math.E, -3 * maxFitness)) + 1) * 0.05;
+        const minSegment = 1;
+        const maxSegment = 13;
+        let dummy = ai;
+        let track = 0;
         for (let i = 0; i < n; i++) {
-            const car = new car_1.default(this.ctx, this.car.spawn, this.car.spawnDirection, this.path);
-            const child = new AI(this.path, car, this.ctx);
-            // first grab random weights and biases from each parent
-            // grab ~50% of each parent's weight and bias
-            for (let i = 0; i < this.layerAmount; i++) {
-                for (let j = 0; j < this.neuronsInLayer[i]; j++) {
-                    // randomly grab either this or ai's weight and bias, 50/50 chance
-                    // mutate based on mutateChance
-                    // either completely rewrite, or change slightly
-                    // try changing slightly first
-                    // if mutate, then randomly change by [-max, max] step
-                    const mutate = Math.random() < mutateChance;
-                    // weight
-                    const parentOfWeight = Math.random() < 0.5 ? this : ai;
-                    let weight = parentOfWeight.layers[i].get(j).weight;
-                    if (mutate)
-                        weight += this.getRandomSign() * this.getRandomRange(0.75, 1) * this.mutateMaxStep;
-                    // bias
-                    const parentOfBias = Math.random() < 0.5 ? this : ai;
-                    let bias = parentOfBias.layers[i].get(j).bias;
-                    if (mutate)
-                        bias += this.getRandomSign() * this.getRandomRange(0.75, 1) * this.mutateMaxStep;
-                    // set the randomly selected weights and biases for this one neuron
-                    child.layers[i].get(j).weight = weight;
-                    child.layers[i].get(j).bias = bias;
+            // first create the DNA segment
+            // randomly cut up the DNA
+            const cutupDNA = [];
+            const car = new car_1.default(this.ctx, this.car.spawn, this.car.direction, this.path);
+            const newChildAI = new AI(this.path, car, this.ctx);
+            let k = 0;
+            while (true) {
+                let step = Math.floor(Math.random() * (maxSegment - minSegment + 1) + maxSegment);
+                if (k + step >= this.DNA.length)
+                    step = this.DNA.length - k - 1;
+                if (step === 0)
+                    break;
+                cutupDNA.push(dummy.DNA.slice(k, k + step));
+                if (track === 0)
+                    dummy = this;
+                else
+                    dummy = ai;
+                k += step;
+                track = Math.abs(track - 1);
+            }
+            let g = 0;
+            let DNA = cutupDNA.join('');
+            for (let i = 0; i < DNA.length; i++) {
+                if (Math.random() < mutateChance) {
+                    g++;
+                    const digit = parseInt(DNA.charAt(i));
+                    DNA = (0, utils_1.replaceAt)(DNA, i, '' + Math.abs(digit - 1));
                 }
             }
-            arr.push(child);
+            console.log('mutated ' + g + ' genes');
+            let p = 0;
+            const newCutUpDNA = [];
+            for (const substr of cutupDNA) {
+                newCutUpDNA.push(DNA.slice(p, p + substr.length));
+                p += substr.length;
+            }
+            const newDNA = newCutUpDNA.join('');
+            // DNA goes weight, bias, weight, bias ...
+            // now we have a mutated DNA strand thats cut up and ready to be put back into a neural network
+            let neuronIndex = 0;
+            let layerIndex = 0;
+            for (let i = 0; i < newDNA.length / maxSegment; i++) {
+                const weightDNA = newDNA.slice(i * maxSegment, (i + 1) * maxSegment - 1);
+                const biasDNA = newDNA.slice((i + 1) * maxSegment, (i + 2) * maxSegment - 1);
+                i++;
+                newChildAI.layers[layerIndex].get(neuronIndex).weight = (0, utils_1.parseBinary)(weightDNA);
+                newChildAI.layers[layerIndex].get(neuronIndex).bias = (0, utils_1.parseBinary)(biasDNA);
+                if (neuronIndex === this.neuronsInLayer[layerIndex] - 1) { // maxed out all the neurons in this layer
+                    layerIndex++;
+                    neuronIndex = 0;
+                }
+                else {
+                    neuronIndex++;
+                }
+            }
+            arr.push(newChildAI);
         }
         return arr;
     }
@@ -79,11 +124,11 @@ class AI {
             const currLayer = this.layers[i];
             for (let k = 0; k < currLayer.neuronAmount; k++) {
                 const neuron = currLayer.get(k);
-                neuron.value = neuron.activate(this.layers); // activate each neuron
-                // if (neuron.value === 0) {
-                //     console.log(this.layers);
-                //     throw new Error();
-                // }
+                neuron.value = neuron.evaluate(this.layers);
+                if (neuron.value === 0) {
+                    console.log(this.layers);
+                    throw new Error();
+                }
             }
         }
         return this.layers[this.layerAmount - 1];
@@ -106,7 +151,7 @@ class AI {
     }
     /** returns a value between [0, 1] */
     getFitness() {
-        return (this.distanceCovered ** 2) / this.car.timeAlive;
+        return this.distanceCovered;
     }
     updateDistanceTraveled() {
         const points = this.path.points;
