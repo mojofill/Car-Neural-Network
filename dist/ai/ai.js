@@ -101,7 +101,7 @@ class AI {
     }
     translateOutput(a, heading_v) {
         // testing!! remove psoitive and zero after
-        this.car.setA((2 * a - 1) * 500);
+        this.car.setA((2 * a - 1) * 250);
         this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV);
     }
     /** returns a value between [0, 1] */

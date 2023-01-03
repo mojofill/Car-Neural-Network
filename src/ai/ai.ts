@@ -113,7 +113,7 @@ export default class AI {
     public translateOutput(a: number, heading_v: number) {
         // testing!! remove psoitive and zero after
         
-        this.car.setA((2 * a - 1) * 500);
+        this.car.setA((2 * a - 1) * 250);
         this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV);
     }
 

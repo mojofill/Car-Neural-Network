@@ -208,7 +208,7 @@ function exportData() {
         "direction": Math.atan2(directionPoint.y - spawn.y, directionPoint.x - spawn.x)
     }, null, 4);
 
-    renderPath(ctx, 50);
+    renderPath(ctx, 25);
 
     const w = window.open("");
     const image = canvas.toDataURL("image/png");

@@ -102,7 +102,7 @@ class AI {
     }
     translateOutput(a, heading_v) {
         // testing!! remove psoitive and zero after
-        this.car.setA((2 * a - 1) * 500);
+        this.car.setA((2 * a - 1) * 250);
         this.car.setHeadingV((2 * heading_v - 1) * this.car.maxHeadingV);
     }
     /** returns a value between [0, 1] */
@@ -232,9 +232,9 @@ todo:
 build a simple control system
 */
 const color = "red";
-const width = 10;
-const height = 20;
-const maxV = 150;
+const width = 5;
+const height = 10;
+const maxV = 75;
 const maxHeadingV = 8;
 class Sensor {
     constructor(car, angle) {
@@ -449,7 +449,7 @@ const evaluateAI = (i) => {
         }
         else {
             ai.car.timeAlive += time.deltaTime;
-            if (ai.car.timeAlive >= 15) {
+            if (ai.car.timeAlive >= 60) {
                 ai.car.die();
             }
         }
@@ -800,7 +800,7 @@ exports.default = RenderedObject;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.round = exports.pixelate = exports.lerp = exports.Line = exports.padZeros = exports.parseBinary = exports.toBinary = exports.replaceAt = exports.PATH_WIDTH = exports.UNIT_WIDTH = void 0;
 exports.UNIT_WIDTH = 1;
-exports.PATH_WIDTH = 50;
+exports.PATH_WIDTH = 25;
 function replaceAt(s, index, replacement) {
     return s.substring(0, index) + replacement + s.substring(index + replacement.length);
 }

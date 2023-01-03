@@ -11,9 +11,9 @@ todo:
 build a simple control system
 */
 const color = "red";
-const width = 10;
-const height = 20;
-const maxV = 150;
+const width = 5;
+const height = 10;
+const maxV = 75;
 const maxHeadingV = 8;
 class Sensor {
     constructor(car, angle) {

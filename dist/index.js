@@ -123,7 +123,7 @@ const evaluateAI = (i) => {
         }
         else {
             ai.car.timeAlive += time.deltaTime;
-            if (ai.car.timeAlive >= 15) {
+            if (ai.car.timeAlive >= 60) {
                 ai.car.die();
             }
         }

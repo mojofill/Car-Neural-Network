@@ -1,1 +1,7 @@
 node_modules/
+dist/
+/preview.html
+/test.html
+/test.js
+/test2.js
+src/preview.js

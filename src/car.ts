@@ -10,10 +10,10 @@ build a simple control system
 
 const color = "red";
 
-const width = 10;
-const height = 20;
+const width = 5;
+const height = 10;
 
-const maxV = 150;
+const maxV = 75;
 const maxHeadingV: number = 8;
 
 class Sensor {

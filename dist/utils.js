@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.round = exports.pixelate = exports.lerp = exports.Line = exports.padZeros = exports.parseBinary = exports.toBinary = exports.replaceAt = exports.PATH_WIDTH = exports.UNIT_WIDTH = void 0;
 exports.UNIT_WIDTH = 1;
-exports.PATH_WIDTH = 50;
+exports.PATH_WIDTH = 25;
 function replaceAt(s, index, replacement) {
     return s.substring(0, index) + replacement + s.substring(index + replacement.length);
 }

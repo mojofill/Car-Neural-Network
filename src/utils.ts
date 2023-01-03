@@ -1,5 +1,5 @@
 export const UNIT_WIDTH = 1;
-export const PATH_WIDTH = 50;
+export const PATH_WIDTH = 25;
 
 export interface Point {
     x: number;
