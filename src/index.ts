@@ -17,7 +17,7 @@ canvas.style.height = '' + canvas.height;
 canvas.style.position = 'fixed';
 canvas.style.margin = canvas.style.left = canvas.style.top = '0px';
 
-let speed = 40;
+let speed = 1;
 
 const time = {
     curr: Date.now() / 1000,
